@@ -39,24 +39,36 @@
     const url = `https://data.sensor.community/airrohr/v1/sensor/${sensorId}/`;
 
     fetch(url)
-      .then(res => res.json())
-      .then(data => {
-        const now = new Date();
-        const timeLimit = now.getTime() - (24 * 60 * 60 * 1000); // last 24h
+  .then(res => res.json())
+  .then(data => {
+    const now = new Date();
+    const timeLimit = now.getTime() - (24 * 60 * 60 * 1000); // last 24h
 
-        const labels = [];
-        const values = [];
+    const labels = [];
+    const values = [];
 
-        data.forEach(entry => {
-          const ts = new Date(entry.timestamp);
-          if (ts.getTime() >= timeLimit) {
-            const valObj = entry.sensordatavalues.find(v => v.value_type === "noise_LAeq");
-            if (valObj) {
-              labels.push(ts);
-              values.push(parseFloat(valObj.value));
-            }
-          }
-        });
+    data.forEach(entry => {
+      const ts = new Date(entry.timestamp);
+      if (ts.getTime() >= timeLimit) {
+        const valObj = entry.sensordatavalues.find(v => v.value_type === "noise_LAeq");
+        if (valObj) {
+          labels.push(ts);
+          values.push(parseFloat(valObj.value));
+        }
+      }
+    });
+
+    if (values.length === 0) {
+      throw new Error("No usable noise_LAeq data");
+    }
+
+    drawChart(labels, values); // or however you’re calling your chart function
+  })
+  .catch(err => {
+    console.error("Error loading sensor data:", err);
+    document.getElementById("status").innerText = "⚠️ Could not load sensor data.";
+  });
+
 
         const ctx = document.getElementById("chart").getContext("2d");
 
