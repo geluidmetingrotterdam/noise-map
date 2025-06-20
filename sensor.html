@@ -17,9 +17,11 @@
 
   <script>
     const sensorId = new URLSearchParams(window.location.search).get("sensor") || "94448";
-    const apiUrl = `https://data.sensor.community/static/v2/data.json?sensor=${sensorId}`;
+    const sensorId = new URLSearchParams(window.location.search).get("sensor") || "94448";
+const apiUrl = `https://data.sensor.community/static/v2/data.json`;
 
-    fetch(apiUrl)
+fetch(apiUrl)
+
       .then(res => res.json())
       .then(data => {
         const now = new Date();
