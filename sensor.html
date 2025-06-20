@@ -31,15 +31,16 @@
         const values = [];
 
         data.forEach(entry => {
-          const ts = new Date(entry.timestamp);
-          if (ts.getTime() >= timeLimit) {
-            const val = entry.sensordatavalues.find(v => v.value_type === "noise_LAeq");
-            if (val) {
-              labels.push(ts);
-              values.push(parseFloat(val.value));
-            }
-          }
-        });
+  const ts = new Date(entry.timestamp.replace(' ', 'T'));
+  if (ts.getTime() >= timeLimit) {
+    const val = entry.sensordatavalues.find(v => v.value_type === "noise_LAeq");
+    if (val) {
+      labels.push(ts);
+      values.push(parseFloat(val.value));
+    }
+  }
+});
+
 
         if (labels.length === 0 || values.length === 0) {
           alert("No noise_LAeq data found in last 24 hours.");
