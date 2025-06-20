@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>89747 - 24 Hour View</title>
+  <title id="page-title">Sensor - 24 Hour View</title>
   <style>
     body {
       font-family: sans-serif;
@@ -32,11 +32,12 @@
   </style>
 </head>
 <body>
-  <h1>89747 - 24 Hour View</h1>
+  <h1 id="header-title">Sensor - 24 Hour View</h1>
   <div class="frame-container">
     <iframe
-      title="Device 89747 24h View"
-      src="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=89747">
+      id="sensor-frame"
+      title="Sensor 24h View"
+      src="">
     </iframe>
   </div>
 
@@ -46,13 +47,32 @@
   </div>
 
   <script>
+    function getSensorIdFromQuery() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("sensor") || "unknown";
+    }
+
+    function updatePage(sensorId) {
+      const title = `${sensorId} - 24 Hour View`;
+      document.getElementById("page-title").innerText = title;
+      document.getElementById("header-title").innerText = title;
+      const url = `https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=${sensorId}`;
+      document.getElementById("sensor-frame").src = url;
+      return url;
+    }
+
     function copyIframeUrl() {
-      const url = "https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=89747";
+      const sensorId = getSensorIdFromQuery();
+      const url = `https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=${sensorId}`;
       navigator.clipboard.writeText(url).then(() => {
         alert("Link copied to clipboard!");
       }, () => {
         alert("Failed to copy link.");
       });
     }
+
+    const sensorId = getSensorIdFromQuery();
+    updatePage(sensorId);
   </script>
-</
+</body>
+</html>
