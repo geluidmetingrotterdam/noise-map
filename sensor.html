@@ -17,7 +17,7 @@
 
   <script>
     const sensorId = new URLSearchParams(window.location.search).get("sensor") || "94448";
-    const apiUrl = `https://data.sensor.community/static/v2/data.json`;
+    const apiUrl = `https://data.sensor.community/airrohr/v1/sensor/${sensorId}/`;
 
     fetch(apiUrl)
       .then(res => res.json())
@@ -29,14 +29,12 @@
         const values = [];
 
         data.forEach(entry => {
-          if (entry.sensor.id.toString() === sensorId) {
-            const ts = new Date(entry.timestamp);
-            if (ts.getTime() >= timeLimit) {
-              const val = entry.sensordatavalues.find(v => v.value_type === "noise_LAeq");
-              if (val) {
-                labels.push(ts);
-                values.push(parseFloat(val.value));
-              }
+          const ts = new Date(entry.timestamp);
+          if (ts.getTime() >= timeLimit) {
+            const val = entry.sensordatavalues.find(v => v.value_type === "noise_LAeq");
+            if (val) {
+              labels.push(ts);
+              values.push(parseFloat(val.value));
             }
           }
         });
