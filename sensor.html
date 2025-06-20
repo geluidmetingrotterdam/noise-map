@@ -1,19 +1,59 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE HTML>
+<html>
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Noise Sensor Data (Grafana View)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sensor 24h View</title>
   <style>
-    body { margin: 0; padding: 0; font-family: sans-serif; }
+    body {
+      font-family: sans-serif;
+      padding: 1rem;
+      background-color: #f8f9fa;
+    }
+    .frame-container {
+      margin-bottom: 2rem;
+    }
     iframe {
+      width: 100%;
+      height: 1000px;
       border: none;
-      width: 100vw;
-      height: 100vh;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+    .actions {
+      margin-top: 1rem;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      margin-right: 1rem;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <iframe src="https://grafana.sensor.community/d/zOgwLThMk/noise-sensor-view?orgId=1&var-sensor_id=94448&from=now-24h&to=now" allowfullscreen></iframe>
+  <h1>Device 13 - 24 Hour View</h1>
+  <div class="frame-container">
+    <iframe
+      title="Device 13 24h View"
+      src="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=89747">
+    </iframe>
+  </div>
+
+  <div class="actions">
+    <button onclick="copyIframeUrl()">Copy Link to Clipboard</button>
+    <button onclick="window.print()">Print to PDF</button>
+  </div>
+
+  <script>
+    function copyIframeUrl() {
+      const url = "https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=89747";
+      navigator.clipboard.writeText(url).then(() => {
+        alert("Link copied to clipboard!");
+      }, () => {
+        alert("Failed to copy link.");
+      });
+    }
+  </script>
 </body>
 </html>
