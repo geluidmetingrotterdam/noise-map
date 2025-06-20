@@ -16,7 +16,7 @@
   <h2>Noise Graph for Sensor (D 4 Example)</h2>
   <canvas id="noiseChart" width="1000" height="400"></canvas>
 
-  <script>
+ <script>
   const sensorId = new URLSearchParams(window.location.search).get("sensor") || "94448";
   const apiUrl = `https://data.sensor.community/airrohr/v1/sensor/${sensorId}/`;
 
@@ -24,51 +24,67 @@
     .then(res => res.json())
     .then(data => {
       const now = new Date();
-      const timeLimit = now.getTime() - 24 * 60 * 60 * 1000;
+      const timeLimit = now.getTime() - (24 * 60 * 60 * 1000); // 24h
 
-      const labels = [], eqValues = [], minValues = [], maxValues = [];
+      const labels = [];
+      const values = [];
 
       data.forEach(entry => {
         const ts = new Date(entry.timestamp);
         if (ts.getTime() >= timeLimit) {
-          const vs = entry.sensordatavalues;
-          const eq = vs.find(v => v.value_type === "noise_LAeq");
-          const min = vs.find(v => v.value_type === "noise_LA_min");
-          const max = vs.find(v => v.value_type === "noise_LA_max");
-          if (eq && min && max) {
+          const val = entry.sensordatavalues.find(v => v.value_type === "noise_LAeq");
+          if (val) {
             labels.push(ts);
-            eqValues.push(parseFloat(eq.value));
-            minValues.push(parseFloat(min.value));
-            maxValues.push(parseFloat(max.value));
+            values.push(parseFloat(val.value));
           }
         }
       });
 
-      if (labels.length === 0) {
-        alert("No valid noise data in the last 24h.");
+      if (labels.length === 0 || values.length === 0) {
+        alert("No noise_LAeq data found in last 24 hours.");
         return;
       }
 
-      function generateNightShading() {
-        const nightShades = {};
-        const start = new Date(labels[0]);
-        const end = new Date(labels[labels.length - 1]);
-        const msPerHour = 60 * 60 * 1000;
-        for (let t = new Date(start); t < end; t = new Date(t.getTime() + msPerHour)) {
-          const hour = t.getHours();
+      function generateNightShading(timestamps) {
+        const shades = {};
+        timestamps.forEach((ts, i) => {
+          const hour = new Date(ts).getHours();
           if (hour >= 22 || hour < 7) {
-            const id = `night-${t.toISOString()}`;
-            const xMin = new Date(t);
-            const xMax = new Date(t.getTime() + msPerHour);
-            nightShades[id] = {
-              type: "box",
-              xMin, xMax,
-              backgroundColor: "rgba(173, 216, 230, 0.2)",
+            const id = `night-${i}`;
+            shades[id] = {
+              type: 'box',
+              xMin: new Date(ts).toISOString(),
+              xMax: new Date(timestamps[i + 1] || ts).toISOString(),
+              backgroundColor: 'rgba(173, 216, 230, 0.2)',
               borderWidth: 0
             };
           }
-        }
-        return nightShades;
+        });
+        return shades;
+      }
+
+      function generateNoiseLines(timestamps) {
+        const lines = {};
+        timestamps.forEach((ts, i) => {
+          const hour = new Date(ts).getHours();
+          const id = `line-${i}`;
+          const x = new Date(ts).toISOString();
+          const nextX = new Date(timestamps[i + 1] || ts).toISOString();
+          const isNight = hour >= 22 || hour < 7;
+          lines[id] = {
+            type: 'line',
+            xMin: x,
+            xMax: nextX,
+            yMin: isNight ? 45 : 70,
+            yMax: isNight ? 45 : 70,
+            borderColor: isNight ? 'blue' : 'red',
+            borderWidth: 1,
+            label: {
+              display: false
+            }
+          };
+        });
+        return lines;
       }
 
       const ctx = document.getElementById("noiseChart").getContext("2d");
@@ -76,85 +92,44 @@
         type: "line",
         data: {
           labels,
-          datasets: [
-            {
-              label: "LAeq (dB)",
-              data: eqValues,
-              borderColor: "#007bff",
-              fill: false,
-              pointRadius: 0,
-              tension: 0
-            },
-            {
-              label: "LA_min",
-              data: minValues,
-              borderColor: "#28a745",
-              borderDash: [4, 2],
-              fill: false,
-              pointRadius: 0,
-              tension: 0
-            },
-            {
-              label: "LA_max",
-              data: maxValues,
-              borderColor: "#dc3545",
-              borderDash: [4, 2],
-              fill: false,
-              pointRadius: 0,
-              tension: 0
-            }
-          ]
+          datasets: [{
+            label: "LAeq (dB)",
+            data: values,
+            borderColor: "#007bff",
+            backgroundColor: "rgba(0,0,0,0)",
+            fill: false,
+            pointRadius: 0,
+            tension: 0.1
+          }]
         },
         options: {
           responsive: true,
+          animation: {
+            duration: 800,
+            x: { type: 'number', easing: 'linear' }
+          },
           scales: {
             x: {
               type: "time",
-              time: { unit: "hour", displayFormats: { hour: "HH:mm" } },
+              time: { unit: "hour", displayFormats: { hour: 'HH:mm' } },
               title: { display: true, text: "Time" }
             },
             y: {
               title: { display: true, text: "Noise Level (dB)" },
-              min: 30, max: 90
+              min: 30,
+              max: 90
             }
           },
           plugins: {
             annotation: {
               annotations: {
-                nightLimit: {
-                  type: "line",
-                  yMin: 45,
-                  yMax: 45,
-                  borderColor: "blue",
-                  borderWidth: 1,
-                  label: {
-                    enabled: true,
-                    content: "Night Limit 45 dB",
-                    position: "start"
-                  },
-                  xMin: labels[0],
-                  xMax: labels[labels.length - 1]
-                },
-                dayLimit: {
-                  type: "line",
-                  yMin: 70,
-                  yMax: 70,
-                  borderColor: "red",
-                  borderWidth: 1,
-                  label: {
-                    enabled: true,
-                    content: "Day Limit 70 dB",
-                    position: "start"
-                  },
-                  xMin: labels[0],
-                  xMax: labels[labels.length - 1]
-                },
-                ...generateNightShading()
+                ...generateNightShading(labels),
+                ...generateNoiseLines(labels)
               }
             }
           }
         },
-        plugins: [Chart.registry.getPlugin("annotation")]
+        plugins: [Chart.registry.getPlugin('annotation')]
       });
     })
     .catch(err => {
@@ -162,6 +137,7 @@
       console.error("Fetch error:", err);
     });
 </script>
+
 
 
 </body>
