@@ -3,150 +3,103 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Sensor Noise Chart</title>
-  <!-- Load local Chart.js -->
-  <script src="chart.umd.min.js"></script>
-  <!-- Load local Chart.js annotation plugin -->
-  <script src="chartjs-plugin-annotation.min.js"></script>
+  <title>Sensor Noise Chart - Static Example</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.2.1/dist/chartjs-plugin-annotation.min.js"></script>
   <style>
     body { font-family: sans-serif; padding: 1rem; background: #f8f9fa; }
     canvas { background: white; border-radius: 10px; box-shadow: 0 0 8px rgba(0,0,0,0.1); }
   </style>
 </head>
 <body>
-  <h2>Noise Graph for Sensor</h2>
+  <h2>Noise Graph for Sensor (Static Example)</h2>
   <canvas id="noiseChart" width="1000" height="400"></canvas>
 
   <script>
-    const sensorId = new URLSearchParams(window.location.search).get("sensor") || "94448";
-    const apiUrl = `https://data.sensor.community/airrohr/v1/sensor/${sensorId}/`;
-
-    fetch(apiUrl)
-  .then(res => {
-    console.log("Fetch status:", res.status);
-    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-    return res.json();
-  })
-  .then(data => {
-    console.log("Raw data:", data);
-
-    if (!Array.isArray(data)) throw new Error("Data is not an array");
-
-    const now = new Date();
-    const timeLimit = now.getTime() - (24 * 60 * 60 * 1000); // 24h
-
+    // Generate labels for 24 hours today
     const labels = [];
     const values = [];
+    const today = new Date();
+    today.setMinutes(0,0,0);
 
-    data.forEach(entry => {
-      const timestamp = entry.timestamp.replace(' ', 'T');
-      const ts = new Date(timestamp);
-      if (ts.getTime() >= timeLimit) {
-        const val = entry.sensordatavalues.find(v => v.value_type === "noise_LAeq");
-        if (val) {
-          labels.push(ts);
-          values.push(parseFloat(val.value));
-        }
-      }
-    });
-
-    console.log("Labels:", labels.length, labels);
-    console.log("Values:", values.length, values);
-
-    if (labels.length === 0 || values.length === 0) {
-      throw new Error("No valid noise_LAeq data in the last 24h");
+    for(let h = 0; h < 24; h++) {
+      let dt = new Date(today);
+      dt.setHours(h);
+      labels.push(dt);
+      // dummy values oscillating from 40 to 80 dB
+      values.push(40 + 40 * Math.abs(Math.sin(h / 24 * 2 * Math.PI)));
     }
 
-    // if we got here, build the chart
-    // 👇 insert chart creation code here
-
-  })
-  .catch(err => {
-    alert("Could not load sensor data.");
-    console.error("Error during fetch or chart build:", err);
-  });
-
-
-
-        if (labels.length === 0 || values.length === 0) {
-          alert("No noise_LAeq data found in last 24 hours.");
-          return;
+    // Create night shading from 22:00 to 7:00 next day
+    function generateNightShading(timestamps) {
+      const shades = {};
+      timestamps.forEach((ts, i) => {
+        const hour = ts.getHours();
+        if (hour >= 22 || hour < 7) {
+          const id = `shade-${i}`;
+          shades[id] = {
+            type: 'box',
+            xMin: ts,
+            xMax: timestamps[i + 1] || ts,
+            backgroundColor: 'rgba(173, 216, 230, 0.2)',
+            borderWidth: 0
+          };
         }
-
-        function generateNightShading(timestamps) {
-          const shades = {};
-          timestamps.forEach((ts, i) => {
-            const hour = new Date(ts).getHours();
-            if (hour >= 22 || hour < 7) {
-              const id = `shade-${i}`;
-              shades[id] = {
-                type: 'box',
-                xMin: ts,
-                xMax: timestamps[i + 1] || ts,
-                backgroundColor: 'rgba(173, 216, 230, 0.2)',
-                borderWidth: 0
-              };
-            }
-          });
-          return shades;
-        }
-
-        const ctx = document.getElementById("noiseChart").getContext("2d");
-        new Chart(ctx, {
-          type: "line",
-          data: {
-            labels,
-            datasets: [{
-              label: "LAeq (dB)",
-              data: values,
-              borderColor: "#007bff",
-              backgroundColor: "rgba(0,123,255,0.1)",
-              fill: true,
-              pointRadius: 0,
-              tension: 0.2
-            }]
-          },
-          options: {
-            responsive: true,
-            scales: {
-              x: {
-                type: "time",
-                time: { unit: "hour", displayFormats: { hour: 'HH:mm' } },
-                title: { display: true, text: "Time" }
-              },
-              y: {
-                title: { display: true, text: "Noise Level (dB)" },
-                min: 30,
-                max: 90
-              }
-            },
-            plugins: {
-              annotation: {
-                annotations: {
-                  dayLimit: {
-                    type: 'line',
-                    yMin: 70, yMax: 70,
-                    borderColor: 'red', borderWidth: 1,
-                    label: { enabled: true, content: 'Day Norm (70 dB)', position: 'start' }
-                  },
-                  nightLimit: {
-                    type: 'line',
-                    yMin: 45, yMax: 45,
-                    borderColor: 'blue', borderWidth: 1,
-                    label: { enabled: true, content: 'Night Norm (45 dB)', position: 'start' }
-                  },
-                  ...generateNightShading(labels)
-                }
-              }
-            }
-          },
-          plugins: [Chart.registry.getPlugin('annotation')]
-        });
-      })
-      .catch(err => {
-        alert("Could not load sensor data.");
-        console.error("Fetch error:", err);
       });
+      return shades;
+    }
+
+    const ctx = document.getElementById("noiseChart").getContext("2d");
+    new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "LAeq (dB)",
+          data: values,
+          borderColor: "#007bff",
+          backgroundColor: "rgba(0,123,255,0.1)",
+          fill: true,
+          pointRadius: 3,
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: {
+            type: "time",
+            time: { unit: "hour", displayFormats: { hour: 'HH:mm' } },
+            title: { display: true, text: "Time" }
+          },
+          y: {
+            title: { display: true, text: "Noise Level (dB)" },
+            min: 30,
+            max: 90
+          }
+        },
+        plugins: {
+          annotation: {
+            annotations: {
+              dayLimit: {
+                type: 'line',
+                yMin: 70, yMax: 70,
+                borderColor: 'red', borderWidth: 1,
+                label: { enabled: true, content: 'Day Norm (70 dB)', position: 'start' }
+              },
+              nightLimit: {
+                type: 'line',
+                yMin: 45, yMax: 45,
+                borderColor: 'blue', borderWidth: 1,
+                label: { enabled: true, content: 'Night Norm (45 dB)', position: 'start' }
+              },
+              ...generateNightShading(labels)
+            }
+          }
+        }
+      },
+      plugins: [Chart.registry.getPlugin('annotation')]
+    });
   </script>
 </body>
 </html>
