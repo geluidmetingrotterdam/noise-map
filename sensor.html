@@ -17,11 +17,9 @@
 
   <script>
     const sensorId = new URLSearchParams(window.location.search).get("sensor") || "94448";
-    const sensorId = new URLSearchParams(window.location.search).get("sensor") || "94448";
-const apiUrl = `https://data.sensor.community/static/v2/data.json`;
+    const apiUrl = `https://data.sensor.community/static/v2/data.json`;
 
-fetch(apiUrl)
-
+    fetch(apiUrl)
       .then(res => res.json())
       .then(data => {
         const now = new Date();
@@ -31,17 +29,18 @@ fetch(apiUrl)
         const values = [];
 
         data.forEach(entry => {
-          const ts = new Date(entry.timestamp);
-          if (ts.getTime() >= timeLimit) {
-            const val = entry.sensordatavalues.find(v => v.value_type === "noise_LAeq");
-            if (val) {
-              labels.push(ts);
-              values.push(parseFloat(val.value));
+          if (entry.sensor.id.toString() === sensorId) {
+            const ts = new Date(entry.timestamp);
+            if (ts.getTime() >= timeLimit) {
+              const val = entry.sensordatavalues.find(v => v.value_type === "noise_LAeq");
+              if (val) {
+                labels.push(ts);
+                values.push(parseFloat(val.value));
+              }
             }
           }
         });
 
-        // 🛠 Move this function ABOVE usage
         function generateNightShading(timestamps) {
           const shades = {};
           timestamps.forEach((ts, i) => {
