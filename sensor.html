@@ -2,10 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sensor Noise Chart</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.2.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <!-- Load local Chart.js -->
+  <script src="chart.umd.min.js"></script>
+  <!-- Load local Chart.js annotation plugin -->
+  <script src="chartjs-plugin-annotation.min.js"></script>
   <style>
     body { font-family: sans-serif; padding: 1rem; background: #f8f9fa; }
     canvas { background: white; border-radius: 10px; box-shadow: 0 0 8px rgba(0,0,0,0.1); }
@@ -39,6 +41,11 @@
           }
         });
 
+        if (labels.length === 0 || values.length === 0) {
+          alert("No noise_LAeq data found in last 24 hours.");
+          return;
+        }
+
         function generateNightShading(timestamps) {
           const shades = {};
           timestamps.forEach((ts, i) => {
@@ -49,7 +56,7 @@
                 type: 'box',
                 xMin: ts,
                 xMax: timestamps[i + 1] || ts,
-                backgroundColor: 'rgba(173, 216, 230, 0.15)',
+                backgroundColor: 'rgba(173, 216, 230, 0.2)',
                 borderWidth: 0
               };
             }
@@ -58,7 +65,7 @@
         }
 
         const ctx = document.getElementById("noiseChart").getContext("2d");
-        const chart = new Chart(ctx, {
+        new Chart(ctx, {
           type: "line",
           data: {
             labels,
@@ -106,12 +113,12 @@
               }
             }
           },
-          plugins: [window['chartjs-plugin-annotation']]
+          plugins: [Chart.registry.getPlugin('annotation')]
         });
       })
       .catch(err => {
         alert("Could not load sensor data.");
-        console.error(err);
+        console.error("Fetch error:", err);
       });
   </script>
 </body>
