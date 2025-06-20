@@ -22,24 +22,50 @@
     const apiUrl = `https://data.sensor.community/airrohr/v1/sensor/${sensorId}/`;
 
     fetch(apiUrl)
-      .then(res => res.json())
-      .then(data => {
-        const now = new Date();
-        const timeLimit = now.getTime() - (24 * 60 * 60 * 1000); // 24h
+  .then(res => {
+    console.log("Fetch status:", res.status);
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+    return res.json();
+  })
+  .then(data => {
+    console.log("Raw data:", data);
 
-        const labels = [];
-        const values = [];
+    if (!Array.isArray(data)) throw new Error("Data is not an array");
 
-        data.forEach(entry => {
-  const ts = new Date(entry.timestamp.replace(' ', 'T'));
-  if (ts.getTime() >= timeLimit) {
-    const val = entry.sensordatavalues.find(v => v.value_type === "noise_LAeq");
-    if (val) {
-      labels.push(ts);
-      values.push(parseFloat(val.value));
+    const now = new Date();
+    const timeLimit = now.getTime() - (24 * 60 * 60 * 1000); // 24h
+
+    const labels = [];
+    const values = [];
+
+    data.forEach(entry => {
+      const timestamp = entry.timestamp.replace(' ', 'T');
+      const ts = new Date(timestamp);
+      if (ts.getTime() >= timeLimit) {
+        const val = entry.sensordatavalues.find(v => v.value_type === "noise_LAeq");
+        if (val) {
+          labels.push(ts);
+          values.push(parseFloat(val.value));
+        }
+      }
+    });
+
+    console.log("Labels:", labels.length, labels);
+    console.log("Values:", values.length, values);
+
+    if (labels.length === 0 || values.length === 0) {
+      throw new Error("No valid noise_LAeq data in the last 24h");
     }
-  }
-});
+
+    // if we got here, build the chart
+    // 👇 insert chart creation code here
+
+  })
+  .catch(err => {
+    alert("Could not load sensor data.");
+    console.error("Error during fetch or chart build:", err);
+  });
+
 
 
         if (labels.length === 0 || values.length === 0) {
