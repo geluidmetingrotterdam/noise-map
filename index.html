@@ -117,16 +117,35 @@
                 const sensorId = entry.sensor.sensor_id || entry.sensor.id;
 
                 const popupContent = `
-                  <strong>Noise Sensor</strong><br>
-                  ID: ${sensorId}<br>
-                  SPL: ${dB} dB<br>
-                  <iframe
-                    width="300"
-                    height="200"
-                    frameborder="0"
-                    src="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=${sensorId}">
-                  </iframe>
-                `;
+  <div>
+    <strong>Noise Sensor</strong><br>
+    ID: ${sensorId}<br>
+    SPL: ${dB} dB<br><br>
+
+    <a href="sensor.html?sensor=${sensorId}" 
+       target="_blank" 
+       style="
+         display: inline-block; 
+         padding: 6px 12px; 
+         background-color: #007bff; 
+         color: white; 
+         border-radius: 4px; 
+         text-decoration: none;
+         font-size: 14px;
+         margin-bottom: 8px;
+         font-weight: bold;">
+      🔎 Full Graph View
+    </a><br>
+
+    <iframe
+      width="300"
+      height="200"
+      frameborder="0"
+      src="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=${sensorId}">
+    </iframe>
+  </div>
+`;
+
 
                 const pulsingIcon = L.divIcon({
                   className: 'pulsing-icon',
