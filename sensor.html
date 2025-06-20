@@ -17,6 +17,8 @@
 
   <script>
     // Generate labels for 24 hours today
+    Chart.register(window['chartjs-plugin-annotation']);
+
     const labels = [];
     const values = [];
     const today = new Date();
