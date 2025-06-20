@@ -17,106 +17,144 @@
   <canvas id="noiseChart" width="1000" height="400"></canvas>
 
   <script>
-  // Get sensor id from URL or fallback to default
   const sensorId = new URLSearchParams(window.location.search).get("sensor") || "94448";
   const apiUrl = `https://data.sensor.community/airrohr/v1/sensor/${sensorId}/`;
 
-  // Helper: generate night shading for annotation plugin
-  function generateNightShading(timestamps) {
-    const shades = {};
-    timestamps.forEach((ts, i) => {
-      const hour = new Date(ts).getHours();
-      if (hour >= 22 || hour < 7) {
-        const id = `shade-${i}`;
-        shades[id] = {
-          type: 'box',
-          xMin: ts,
-          xMax: timestamps[i + 1] || ts,
-          backgroundColor: 'rgba(173, 216, 230, 0.2)',
-          borderWidth: 0
-        };
-      }
-    });
-    return shades;
-  }
-
-  // Fetch data from API
   fetch(apiUrl)
     .then(res => res.json())
     .then(data => {
       const now = new Date();
-      const timeLimit = now.getTime() - (24 * 60 * 60 * 1000); // last 24 hours
+      const timeLimit = now.getTime() - 24 * 60 * 60 * 1000;
 
-      const labels = [];
-      const values = [];
+      const labels = [], eqValues = [], minValues = [], maxValues = [];
 
       data.forEach(entry => {
         const ts = new Date(entry.timestamp);
         if (ts.getTime() >= timeLimit) {
-          const valObj = entry.sensordatavalues.find(v => v.value_type === "noise_LAeq");
-          if (valObj) {
+          const vs = entry.sensordatavalues;
+          const eq = vs.find(v => v.value_type === "noise_LAeq");
+          const min = vs.find(v => v.value_type === "noise_LA_min");
+          const max = vs.find(v => v.value_type === "noise_LA_max");
+          if (eq && min && max) {
             labels.push(ts);
-            values.push(parseFloat(valObj.value));
+            eqValues.push(parseFloat(eq.value));
+            minValues.push(parseFloat(min.value));
+            maxValues.push(parseFloat(max.value));
           }
         }
       });
 
-      if (labels.length === 0 || values.length === 0) {
-        alert("No noise_LAeq data found in last 24 hours.");
+      if (labels.length === 0) {
+        alert("No valid noise data in the last 24h.");
         return;
       }
 
-      const ctx = document.getElementById("noiseChart").getContext("2d");
+      function generateNightShading() {
+        const nightShades = {};
+        const start = new Date(labels[0]);
+        const end = new Date(labels[labels.length - 1]);
+        const msPerHour = 60 * 60 * 1000;
+        for (let t = new Date(start); t < end; t = new Date(t.getTime() + msPerHour)) {
+          const hour = t.getHours();
+          if (hour >= 22 || hour < 7) {
+            const id = `night-${t.toISOString()}`;
+            const xMin = new Date(t);
+            const xMax = new Date(t.getTime() + msPerHour);
+            nightShades[id] = {
+              type: "box",
+              xMin, xMax,
+              backgroundColor: "rgba(173, 216, 230, 0.2)",
+              borderWidth: 0
+            };
+          }
+        }
+        return nightShades;
+      }
 
+      const ctx = document.getElementById("noiseChart").getContext("2d");
       new Chart(ctx, {
         type: "line",
         data: {
           labels,
-          datasets: [{
-            label: "LAeq (dB)",
-            data: values,
-            borderColor: "#007bff",
-            backgroundColor: "rgba(0,123,255,0.1)",
-            fill: true,
-            pointRadius: 0,
-            tension: 0.2
-          }]
+          datasets: [
+            {
+              label: "LAeq (dB)",
+              data: eqValues,
+              borderColor: "#007bff",
+              fill: false,
+              pointRadius: 0,
+              tension: 0
+            },
+            {
+              label: "LA_min",
+              data: minValues,
+              borderColor: "#28a745",
+              borderDash: [4, 2],
+              fill: false,
+              pointRadius: 0,
+              tension: 0
+            },
+            {
+              label: "LA_max",
+              data: maxValues,
+              borderColor: "#dc3545",
+              borderDash: [4, 2],
+              fill: false,
+              pointRadius: 0,
+              tension: 0
+            }
+          ]
         },
         options: {
           responsive: true,
           scales: {
             x: {
               type: "time",
-              time: { unit: "hour", displayFormats: { hour: 'HH:mm' } },
+              time: { unit: "hour", displayFormats: { hour: "HH:mm" } },
               title: { display: true, text: "Time" }
             },
             y: {
               title: { display: true, text: "Noise Level (dB)" },
-              min: 30,
-              max: 90
+              min: 30, max: 90
             }
           },
           plugins: {
             annotation: {
               annotations: {
-                dayLimit: {
-                  type: 'line',
-                  yMin: 70, yMax: 70,
-                  borderColor: 'red', borderWidth: 1,
-                  label: { enabled: true, content: 'Day Norm (70 dB)', position: 'start' }
-                },
                 nightLimit: {
-                  type: 'line',
-                  yMin: 45, yMax: 45,
-                  borderColor: 'blue', borderWidth: 1,
-                  label: { enabled: true, content: 'Night Norm (45 dB)', position: 'start' }
+                  type: "line",
+                  yMin: 45,
+                  yMax: 45,
+                  borderColor: "blue",
+                  borderWidth: 1,
+                  label: {
+                    enabled: true,
+                    content: "Night Limit 45 dB",
+                    position: "start"
+                  },
+                  xMin: labels[0],
+                  xMax: labels[labels.length - 1]
                 },
-                ...generateNightShading(labels)
+                dayLimit: {
+                  type: "line",
+                  yMin: 70,
+                  yMax: 70,
+                  borderColor: "red",
+                  borderWidth: 1,
+                  label: {
+                    enabled: true,
+                    content: "Day Limit 70 dB",
+                    position: "start"
+                  },
+                  xMin: labels[0],
+                  xMax: labels[labels.length - 1]
+                },
+                ...generateNightShading()
               }
             }
           }
         },
-        plugins: [Chart.registry.getPlugin('annotation')]
+        plugins: [Chart.registry.getPlugin("annotation")]
       });
     })
     .catch(err => {
@@ -124,6 +162,7 @@
       console.error("Fetch error:", err);
     });
 </script>
+
 
 </body>
 </html>
