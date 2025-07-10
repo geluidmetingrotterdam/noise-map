@@ -34,7 +34,7 @@ jobs:
           INFLUX_URL:   ${{ secrets.INFLUX_URL }}
           INFLUX_TOKEN: ${{ secrets.INFLUX_TOKEN }}
           INFLUX_ORG:   ${{ secrets.INFLUX_ORG }}
-          INFLUX_BUCKET:$${{ secrets.INFLUX_BUCKET }}
+          INFLUX_BUCKET:${{ secrets.INFLUX_BUCKET }}
           # Optional: override SENSOR_IDS if needed
           # SENSOR_IDS: "94735,94284,..."  
         run: |
