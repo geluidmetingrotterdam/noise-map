@@ -124,32 +124,81 @@ const popupContent = `
     ID: ${sensorId}<br>
     SPL: ${dB} dB<br><br>
 
-   
-    
-    <a href="${githubPagesBase}/sensor-overview-2-id.html?sensor=${sensorId}"
+    <!-- Button: Last 24 h -->
+    <a
+      href="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view
+            ?orgId=1
+            &panelId=12
+            &var-node=${sensorId}
+            &from=now-24h
+            &to=now
+            &theme=light
+            &refresh=5s
+            &timezone=browser"
+      target="_blank"
+      rel="noopener noreferrer"
+      style="
+        display: inline-block;
+        margin: 2px;
+        padding: 6px 12px;
+        background-color: #007bff;
+        color: white;
+        border-radius: 4px;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: bold;
+      "
+    >
+      ⏰ Last 24 h
+    </a>
 
-       target="_blank" 
-       style="
-         display: inline-block;
-         padding: 6px 12px;
-         background-color: #007bff;
-         color: white;
-         border-radius: 4px;
-         text-decoration: none;
-         font-size: 14px;
-         font-weight: bold;
-         margin-bottom: 8px;">
-      🔎 Full Graph View
-    </a><br>
+    <!-- Button: Last 7 d -->
+    <a
+      href="https://geluidmetingrotterdam.grafana.net/d-solo/25cceef7-345f-4631-a5de-3d508acb4b35/7-days-view
+            ?orgId=1
+            &panelId=1
+            &from=now-8d/d
+            &to=now-1d/d
+            &timezone=browser
+            &theme=light
+            &refresh=5s
+            &var-sensor_id=${sensorId}"
+      target="_blank"
+      rel="noopener noreferrer"
+      style="
+        display: inline-block;
+        margin: 2px;
+        padding: 6px 12px;
+        background-color: #28a745;
+        color: white;
+        border-radius: 4px;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: bold;
+      "
+    >
+      📈 Last 7 d
+    </a>
+    <br><br>
 
+    <!-- Embedded miniature 24 h graph (optional) -->
     <iframe
       width="300"
       height="200"
       frameborder="0"
-      src="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=${sensorId}">
+      src="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view
+           ?orgId=1
+           &panelId=12
+           &var-node=${sensorId}
+           &from=now-24h
+           &to=now
+           &theme=light
+           &refresh=5s
+           &timezone=browser">
     </iframe>
   </div>
 `;
+
 
 
 
