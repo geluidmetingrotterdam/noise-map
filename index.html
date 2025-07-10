@@ -118,67 +118,42 @@
 
                 const githubPagesBase = "https://geluidmetingrotterdam.github.io/noise-map";
 
+
 const popupContent = `
-  <div>
+  <div style="text-align:center">
     <strong>Noise Sensor</strong><br>
     ID: ${sensorId}<br>
     SPL: ${dB} dB<br><br>
 
-    <!-- Button: Last 24 h -->
-    <a
-      href="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view
-            ?orgId=1
-            &panelId=12
-            &var-node=${sensorId}
-            &from=now-24h
-            &to=now
-            &theme=light
-            &refresh=5s
-            &timezone=browser"
-      target="_blank"
-      rel="noopener noreferrer"
-      style="
-        display: inline-block;
-        margin: 2px;
-        padding: 6px 12px;
-        background-color: #007bff;
-        color: white;
-        border-radius: 4px;
-        text-decoration: none;
-        font-size: 13px;
-        font-weight: bold;
-      "
-    >
-      ⏰ Last 24 h
+    <!-- Buttons to open interactive panels -->
+    <a href="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-chipID=${chipId}&from=now-24h&to=now&theme=light&refresh=5s&timezone=browser"
+       target="_blank" rel="noopener noreferrer"
+       style="margin:2px;padding:6px 12px;background:#007bff;color:#fff;border-radius:4px;text-decoration:none;">
+       ⏰ Last 24 h (interactive)
     </a>
+    <a href="https://geluidmetingrotterdam.grafana.net/d-solo/25cceef7-345f-4631-a5de-3d508acb4b35/7-days-view?orgId=1&panelId=1&from=now-8d/d&to=now-1d/d&var-sensor_id=${sensorId}&theme=light&refresh=5s&timezone=browser"
+       target="_blank" rel="noopener noreferrer"
+       style="margin:2px;padding:6px 12px;background:#28a745;color:#fff;border-radius:4px;text-decoration:none;">
+       📈 Last 7 d (interactive)
+    </a>
+    <br><br>
 
-    <!-- Button: Last 7 d -->
-    <a
-      href="https://geluidmetingrotterdam.grafana.net/d-solo/25cceef7-345f-4631-a5de-3d508acb4b35/7-days-view
-            ?orgId=1
-            &panelId=1
-            &from=now-8d/d
-            &to=now-1d/d
-            &timezone=browser
-            &theme=light
-            &refresh=5s
-            &var-sensor_id=${sensorId}"
-      target="_blank"
-      rel="noopener noreferrer"
-      style="
-        display: inline-block;
-        margin: 2px;
-        padding: 6px 12px;
-        background-color: #28a745;
-        color: white;
-        border-radius: 4px;
-        text-decoration: none;
-        font-size: 13px;
-        font-weight: bold;
-      "
-    >
-      📈 Last 7 d
-    </a>
+    <!-- Inline 24 h Madavi embed -->
+    <iframe
+      width="300" height="200" frameborder="0"
+      src="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-chipID=${chipId}&from=now-24h&to=now&theme=light&refresh=5s&timezone=browser">
+    </iframe>
+    <br><br>
+
+    <!-- Inline 7 day Grafana snapshot image -->
+    <img
+      src="https://geluidmetingrotterdam.grafana.net/dashboard/snapshot/‹YOUR_SNAPSHOT_ID›.png"
+      alt="7 Day Noise Overview"
+      style="width:300px;height:200px;border:1px solid #ccc;"
+    />
+  </div>
+`;
+
     <br><br>
 
     <!-- Embedded miniature 24 h graph (optional) -->
