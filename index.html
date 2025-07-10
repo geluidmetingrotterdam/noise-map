@@ -1,188 +1,29 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Noise Sensors in Rotterdam Centrum</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <style>
-    #map {
-      height: 100vh;
-    }
-    .pulsing-icon div {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse {
-      0% {
-        transform: scale(1);
-        box-shadow: 0 0 0 0 rgba(0,0,0, 0.4);
-      }
-      70% {
-        transform: scale(1.4);
-        box-shadow: 0 0 0 10px rgba(0,0,0, 0);
-      }
-      100% {
-        transform: scale(1);
-        box-shadow: 0 0 0 0 rgba(0,0,0, 0);
-      }
-    }
-    #legend {
-      position: fixed; 
-      bottom: 30px; 
-      left: 10px; 
-      background: white; 
-      padding: 10px; 
-      border-radius: 5px; 
-      box-shadow: 0 0 5px rgba(0,0,0,0.3);
-      font-family: sans-serif;
-      font-size: 14px;
-      z-index: 1000;
-      line-height: 1.4;
-    }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
-
-  <div id="legend">
-    <strong>Noise Norms</strong><br>
-    Day (07:00–19:00): ≤ 70 dB<br>
-    Evening (19:00–07:00): ≤ 45 dB<br><br>
-    <span style="color:green;">●</span> Within norm<br>
-    <span style="color:orange;">●</span> Slightly above norm<br>
-    <span style="color:red;">●</span> Above norm
-  </div>
-
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-      const map = L.map('map', {
-      maxZoom: 18,
-      scrollWheelZoom: true
-    }).setView([51.9191, 4.4801], 15);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
-    // Noise norms (max allowed dB)
-    const norms = {
-      day: { max: 70 },      // updated to 70 dB for 7:00 - 19:00
-      evening: { max: 45 }   // 19:00 - 7:00 remains 45 dB
-    };
-
-    function getCurrentNorm() {
-      const now = new Date();
-      const hour = now.getHours();
-      if (hour >= 7 && hour < 19) {
-        return norms.day;
-      } else {
-        return norms.evening;
-      }
-    }
-
-    function getColor(dB) {
-      const norm = getCurrentNorm();
-      if (dB <= norm.max) return 'green';
-      if (dB <= norm.max + 10) return 'orange';
-      return 'red';
-    }
-
-    let markersLayer = L.layerGroup().addTo(map);
-
-    function loadSensors() {
-      markersLayer.clearLayers();
-
-      fetch('https://data.sensor.community/static/v2/data.json')
-        .then(res => res.json())
-        .then(data => {
-          let count = 0;
-
-          data.forEach(entry => {
-            const lat = entry.location.latitude;
-            const lon = entry.location.longitude;
-
-            if (lat > 51.90 && lat < 51.95 && lon > 4.45 && lon < 4.50) {
-              const noiseVal = entry.sensordatavalues.find(val =>
-                val.value_type.toLowerCase().includes("noise") || 
-                val.value_type.toLowerCase().includes("spl")
-              );
-
-              if (noiseVal) {
-                count++;
-                const dB = parseFloat(noiseVal.value);
-                const color = getColor(dB);
-                const sensorId = entry.sensor.sensor_id || entry.sensor.id;
-
-                const githubPagesBase = "https://geluidmetingrotterdam.github.io/noise-map";
-
-
 const popupContent = `
   <div style="text-align:center">
     <strong>Noise Sensor</strong><br>
     ID: ${sensorId}<br>
     SPL: ${dB} dB<br><br>
 
-    <!-- Buttons to open interactive panels -->
-    <a href="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-chipID=${chipId}&from=now-24h&to=now&theme=light&refresh=5s&timezone=browser"
+    <!-- Buttons -->
+    <a href="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=${sensorId}&from=now-24h&to=now&theme=light&refresh=5s&timezone=browser"
        target="_blank" rel="noopener noreferrer"
        style="margin:2px;padding:6px 12px;background:#007bff;color:#fff;border-radius:4px;text-decoration:none;">
-       ⏰ Last 24 h (interactive)
+       ⏰ Last 24 h
     </a>
     <a href="https://geluidmetingrotterdam.grafana.net/d-solo/25cceef7-345f-4631-a5de-3d508acb4b35/7-days-view?orgId=1&panelId=1&from=now-8d/d&to=now-1d/d&var-sensor_id=${sensorId}&theme=light&refresh=5s&timezone=browser"
        target="_blank" rel="noopener noreferrer"
        style="margin:2px;padding:6px 12px;background:#28a745;color:#fff;border-radius:4px;text-decoration:none;">
-       📈 Last 7 d (interactive)
+       📈 Last 7 d
     </a>
     <br><br>
 
-    <!-- Inline 24 h Madavi embed -->
+    <!-- Inline 24 h iframe -->
     <iframe
       width="300" height="200" frameborder="0"
-      src="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-chipID=${chipId}&from=now-24h&to=now&theme=light&refresh=5s&timezone=browser">
+      src="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=${sensorId}&from=now-24h&to=now&theme=light&refresh=5s&timezone=browser">
     </iframe>
     <br><br>
 
-    <!-- Inline 7 day Grafana snapshot image -->
-    <img
-      src="https://geluidmetingrotterdam.grafana.net/dashboard/snapshot/‹YOUR_SNAPSHOT_ID›.png"
-      alt="7 Day Noise Overview"
-      style="width:300px;height:200px;border:1px solid #ccc;"
-    />
+    <!-- Remove or replace static snapshot if you have one -->
   </div>
 `;
-
-   
-
-
-
-                const pulsingIcon = L.divIcon({
-                  className: 'pulsing-icon',
-                  html: `<div style="background:${color}"></div>`,
-                  iconSize: [20, 20],
-                  popupAnchor: [0, -10]
-                });
-
-                L.marker([lat, lon], { icon: pulsingIcon })
-                  .addTo(markersLayer)
-                  .bindPopup(popupContent, {
-                    maxWidth: 400,
-                    minWidth: 320,
-                    autoPan: true
-                  });
-              }
-            }
-          });
-
-          console.log(`Displayed ${count} noise sensors.`);
-        })
-        .catch(err => console.error("Error loading sensor data:", err));
-    }
-
-    loadSensors();
-    setInterval(loadSensors, 300000); // Refresh every 5 min
-  </script>
-</body>
-</html>
