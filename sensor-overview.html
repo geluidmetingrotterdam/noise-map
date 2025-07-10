@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Sensor Overview</title>
+  <style>
+    body { margin:0; font-family: sans-serif; }
+    iframe { border:none; width:100%; }
+    #panel24 { height: 300px; }
+    #panel7d { height: 300px; }
+  </style>
+</head>
+<body>
+  <h1 id="title">Sensor Overview</h1>
+  <iframe id="panel24"></iframe>
+  <iframe id="panel7d"></iframe>
+
+  <script>
+    // Read sensor ID from URL query, e.g. ?sensor=94735
+    const params = new URLSearchParams(location.search);
+    const sensor = params.get('sensor');
+    document.getElementById('title').textContent = `Sensor ${sensor} Overview`;
+
+    // Replace these with your actual Grafana embed URLs (use ?var-sensor_id=…)
+    const grafanaBase = 'https://<your-grafana-domain>/d-solo/<dashboard-uid>/single-sensor-view';
+    const orgId = '1';
+    const theme = 'light';
+    const zone = 'browser';
+    const refresh = '1m';
+
+    // 24h panelId=12, 7d panelId=13 (example—replace panelId as you set up)
+    document.getElementById('panel24').src = 
+      `${grafanaBase}?orgId=${orgId}&panelId=12&var-sensor_id=${sensor}` +
+      `&from=now-24h&to=now&theme=${theme}&refresh=${refresh}&timezone=${zone}`;
+
+    document.getElementById('panel7d').src = 
+      `${grafanaBase}?orgId=${orgId}&panelId=13&var-sensor_id=${sensor}` +
+      `&from=now-8d&to=now-1d&theme=${theme}&refresh=${refresh}&timezone=${zone}`;
+  </script>
+</body>
+</html>
