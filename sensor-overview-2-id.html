@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sensor Overview</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    header { padding: 1rem; background: #007bff; color: white; }
+    h1 { margin: 0; font-size: 1.25rem; }
+    .panel { width: 100%; border: none; display: block; }
+    #panel24 { height: 300px; }
+    #panel7d { height: 400px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="title">Sensor Overview</h1>
+  </header>
+
+  <!-- 24h Madavi Panel -->
+  <iframe
+    id="panel24"
+    class="panel"
+    src=""
+  ></iframe>
+
+  <!-- 7-Day Grafana Cloud Panel -->
+  <iframe
+    id="panel7d"
+    class="panel"
+    src=""
+  ></iframe>
+
+  <script>
+    // Read sensor ID from URL (?sensor=...)
+    const params   = new URLSearchParams(window.location.search);
+    const sensorId = params.get("sensor") || "";
+
+    document.getElementById("title").textContent = 
+      sensorId ? `Sensor ${sensorId} Overview` : "Sensor Overview";
+
+    // Madavi 24h solo panel (unchanged)
+    const madaviBase = "https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view";
+    const madaviSrc  = `${madaviBase}` +
+      `?orgId=1&panelId=12&var-node=${sensorId}` +
+      `&from=now-24h&to=now&theme=light&refresh=5s&timezone=browser`;
+
+    // Grafana Cloud 7-day solo panel
+    // Replace panelId=1 below if your 7-day panel has a different ID
+    const grafanaBase = "https://geluidmetingrotterdam.grafana.net" +
+      "/d-solo/25cceef7-345f-4631-a5de-3d508acb4b35/7-days-view";
+    const grafanaSrc  = `${grafanaBase}` +
+      `?orgId=1&panelId=1&var-sensor_id=${sensorId}` +
+      `&from=now-8d&to=now-1d&theme=light&refresh=5s&timezone=browser`;
+
+    // Assign iframe srcs
+    document.getElementById("panel24").src = madaviSrc;
+    document.getElementById("panel7d").src = grafanaSrc;
+  </script>
+</body>
+</html>
