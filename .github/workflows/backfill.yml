@@ -25,6 +25,7 @@ jobs:
 
       - name: Run daily backfill
         env:
+          PYTHONUNBUFFERED: "1"  # 👈 forces real-time print output
           INFLUX_URL:    ${{ secrets.INFLUX_URL }}
           INFLUX_TOKEN:  ${{ secrets.INFLUX_TOKEN }}
           INFLUX_ORG:    ${{ secrets.INFLUX_ORG }}
