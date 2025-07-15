@@ -70,17 +70,19 @@ def fetch_and_push(sensor_id: int, day: str) -> bool:
             for field in ["noise_LAeq", "noise_LA_min", "noise_LA_max"]:
                 value = data.get(field)
                 if value:
-                    fields[field] = float(value)
+                    try:
+                        fields[field] = float(value)
+                    except ValueError:
+                        continue
 
             if not fields:
                 continue
 
-            point = (
-                Point("noise")
-                .tag("sensor_id", str(sensor_id))
-                .fields(fields)
-                .time(bucket_time.astimezone(pytz.UTC), WritePrecision.S)
-            )
+            point = Point("noise").tag("sensor_id", str(sensor_id))
+            for key, value in fields.items():
+                point = point.field(key, value)
+            point = point.time(bucket_time.astimezone(pytz.UTC), WritePrecision.S)
+
             write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
             points_written += 1
 
