@@ -8,9 +8,7 @@ import plotly.graph_objects as go
 # CONFIGURATION
 # ---------------
 INFLUX_URL = "https://eu-central-1-1.aws.cloud2.influxdata.com"
-INFLUX_TOKEN = "-_P87rOiwYwhU5CrKstQ-Y9vCrwvRvGXSicCXYSJZUpvAY-t-HUDsDNNbbfU2VKB0a3x7o5j2caulJ4euo1M0w=="    # Replace with your token
-INFLUX_ORG = "Overview"                    # Replace with your org
-INFLUX_BUCKET = "sensor-data"                 # Replace with your bucket
+               # Replace with your bucket
 MEASUREMENT = "noise"
 FIELD = "LAeq"
 
