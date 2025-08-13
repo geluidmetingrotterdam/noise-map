@@ -104,7 +104,7 @@
             const lat = entry.location.latitude;
             const lon = entry.location.longitude;
 
-            if (lat > 51.89 && lat < 51.91 && lon > 4.44 && lon < 4.52) {
+            if (lat > 51.79 && lat < 51.91 && lon > 4.44 && lon < 4.52) {
               const noiseVal = entry.sensordatavalues.find(val =>
                 val.value_type.toLowerCase().includes("noise") || 
                 val.value_type.toLowerCase().includes("spl")
