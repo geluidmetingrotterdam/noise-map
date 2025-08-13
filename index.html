@@ -101,7 +101,7 @@
             const lon = entry.location.longitude;
 
             // Original Rotterdam central bounding box
-            if (lat > 51.89 && lat < 51.91 && lon > 4.44 && lon < 4.52) {
+            if (lat > 51.89 && lat < 51.93 && lon > 4.44 && lon < 4.62) {
               const noiseVal = entry.sensordatavalues.find(val =>
                 val.value_type.toLowerCase().includes("noise") || 
                 val.value_type.toLowerCase().includes("spl")
