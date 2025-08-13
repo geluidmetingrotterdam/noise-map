@@ -39,3 +39,117 @@
       box-shadow: 0 0 5px rgba(0,0,0,0.3);
       font-family: sans-serif;
       font-size: 14px;
+      z-index: 1000;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div id="legend">
+    <strong>Noise Norms</strong><br>
+    Day (07:00–19:00): ≤ 70 dB<br>
+    Evening (19:00–07:00): ≤ 45 dB<br><br>
+    <span style="color:green;">●</span> Within norm<br>
+    <span style="color:orange;">●</span> Slightly above norm<br>
+    <span style="color:red;">●</span> Above norm
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map', {
+      maxZoom: 18,
+      scrollWheelZoom: true
+    }).setView([51.9191, 4.4801], 15);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Noise norms
+    const norms = {
+      day: { max: 70 },      
+      evening: { max: 45 }   
+    };
+
+    function getCurrentNorm() {
+      const now = new Date();
+      const hour = now.getHours();
+      return (hour >= 7 && hour < 19) ? norms.day : norms.evening;
+    }
+
+    function getColor(dB) {
+      const norm = getCurrentNorm();
+      if (dB <= norm.max) return 'green';
+      if (dB <= norm.max + 10) return 'orange';
+      return 'red';
+    }
+
+    let markersLayer = L.layerGroup().addTo(map);
+
+    function loadSensors() {
+      markersLayer.clearLayers();
+
+      fetch('https://data.sensor.community/static/v2/data.json')
+        .then(res => res.json())
+        .then(data => {
+          let count = 0;
+
+          data.forEach(entry => {
+            const lat = entry.location.latitude;
+            const lon = entry.location.longitude;
+
+            // Original Rotterdam central bounding box
+            if (lat > 51.89 && lat < 51.91 && lon > 4.44 && lon < 4.52) {
+              const noiseVal = entry.sensordatavalues.find(val =>
+                val.value_type.toLowerCase().includes("noise") || 
+                val.value_type.toLowerCase().includes("spl")
+              );
+
+              if (noiseVal) {
+                count++;
+                const dB = parseFloat(noiseVal.value);
+                const color = getColor(dB);
+                const sensorId = entry.sensor.sensor_id || entry.sensor.id;
+
+                const popupContent = `
+                  <strong>Noise Sensor</strong><br>
+                  ID: ${sensorId}<br>
+                  SPL: ${dB} dB<br>
+                  <iframe
+                    width="300"
+                    height="200"
+                    frameborder="0"
+                    src="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=${sensorId}">
+                  </iframe>
+                `;
+
+                const pulsingIcon = L.divIcon({
+                  className: 'pulsing-icon',
+                  html: `<div style="background:${color}"></div>`,
+                  iconSize: [20, 20],
+                  popupAnchor: [0, -10]
+                });
+
+                L.marker([lat, lon], { icon: pulsingIcon })
+                  .addTo(markersLayer)
+                  .bindPopup(popupContent, {
+                    maxWidth: 400,
+                    minWidth: 320,
+                    autoPan: true
+                  });
+              }
+            }
+          });
+
+          console.log(`Displayed ${count} noise sensors.`);
+        })
+        .catch(err => console.error("Error loading sensor data:", err));
+    }
+
+    loadSensors();
+    setInterval(loadSensors, 300000); // Refresh every 5 min
+  </script>
+</body>
+</html>
