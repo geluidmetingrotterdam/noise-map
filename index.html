@@ -104,7 +104,7 @@
             const lat = entry.location.latitude;
             const lon = entry.location.longitude;
 
-            if (lat > 51.79 && lat < 51.91 && lon > 4.44 && lon < 4.52) {
+            if (lat > 51.89 && lat < 51.96 && lon > 4.44 && lon < 4.52) {
               const noiseVal = entry.sensordatavalues.find(val =>
                 val.value_type.toLowerCase().includes("noise") || 
                 val.value_type.toLowerCase().includes("spl")
@@ -116,7 +116,7 @@
                 const color = getColor(dB);
                 const sensorId = entry.sensor.sensor_id || entry.sensor.id;
     
-                const popupContent = `
+                const popupContent = 
                   <strong>Noise Sensor</strong><br>
                   ID: ${sensorId}<br>
                   SPL: ${dB} dB<br>
@@ -126,11 +126,11 @@
                     frameborder="0"
                     src="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=${sensorId}">
                   </iframe>
-              `;
+              ;
 
                 const pulsingIcon = L.divIcon({
                   className: 'pulsing-icon',
-                  html: `<div style="background:${color}"></div>`,
+                  html: <div style="background:${color}"></div>,
                   iconSize: [20, 20],
                   popupAnchor: [0, -10]
                 });
@@ -146,7 +146,7 @@
             }
           });
 
-          console.log(`Displayed ${count} noise sensors.`);
+          console.log(Displayed ${count} noise sensors.);
         })
         .catch(err => console.error("Error loading sensor data:", err));
     }
