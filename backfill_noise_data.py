@@ -50,7 +50,8 @@ adapter = HTTPAdapter(max_retries=retries)
 session.mount("http://", adapter)
 session.mount("https://", adapter)
 
-successful_fetches = 0
+MAX_RETRIES = 3        # retries if all sensors missing
+RETRY_WAIT = 30 * 60   # wait 30 minutes between retries
 
 def fetch_and_push(sensor_id: int, day: str) -> bool:
     url = f"{BASE_URL}/{day}/{day}_laerm_sensor_{sensor_id}.csv"
@@ -62,6 +63,12 @@ def fetch_and_push(sensor_id: int, day: str) -> bool:
         except IncompleteRead as e:
             print(f"💥 Incomplete read for sensor {sensor_id} on {day}: {e}", flush=True)
             return False
+        except requests.exceptions.HTTPError as e:
+            if resp.status_code == 404:
+                print(f"⚠️ Sensor {sensor_id} on {day}: 404 Not Found", flush=True)
+                return False
+            else:
+                raise
 
         lines = resp.text.strip().split("\n")
         if not lines or len(lines) < 2:
@@ -118,17 +125,32 @@ def fetch_and_push(sensor_id: int, day: str) -> bool:
         print(f"💥 Error for sensor {sensor_id} on {day}: {e}", flush=True)
         return False
 
+def backfill_day(day: str):
+    for attempt in range(1, MAX_RETRIES + 1):
+        print(f"🕓 Attempt {attempt}/{MAX_RETRIES} for {day}", flush=True)
+        successful_fetches = 0
+        skipped_sensors = []
+
+        for sensor in SENSOR_IDS:
+            if fetch_and_push(sensor, day):
+                successful_fetches += 1
+            else:
+                skipped_sensors.append(sensor)
+            time.sleep(1)
+
+        if successful_fetches > 0:
+            print(f"🎉 Backfill complete for {day}: {successful_fetches} sensors processed, {len(skipped_sensors)} sensors missing.", flush=True)
+            return True
+        else:
+            if attempt < MAX_RETRIES:
+                print(f"❌ No data for any sensor on {day}, archive may not be ready. Retrying in {RETRY_WAIT//60} minutes...", flush=True)
+                time.sleep(RETRY_WAIT)
+            else:
+                print(f"⚠️ Archive still not ready for {day} after {MAX_RETRIES} attempts. Skipping for now.", flush=True)
+                return False
+
 # Main loop
-for sensor in SENSOR_IDS:
-    for day in DAYS:
-        if fetch_and_push(sensor, day):
-            successful_fetches += 1
-        time.sleep(1)
+for day in DAYS:
+    backfill_day(day)
 
 client.close()
-
-if successful_fetches == 0:
-    print("❌ No data fetched from any sensor — archive may not be ready.", flush=True)
-    exit(1)
-
-print(f"🎉 Backfill complete: {successful_fetches} sensors processed.", flush=True)
