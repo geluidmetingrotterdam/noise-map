@@ -1,3 +1,7 @@
 requests
 influxdb-client
 pytz
+pandas
+matplotlib
+jinja2
+weasyprint
