@@ -9,13 +9,17 @@ from influxdb_client import InfluxDBClient
 INFLUX_URL = os.getenv("INFLUX_URL")
 INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
 INFLUX_ORG = os.getenv("INFLUX_ORG")
-BUCKET = "sensor_data"
+BUCKET = "sensor_data"  # your InfluxDB bucket
 TZ = pytz.timezone("Europe/Amsterdam")
 
 DAY_THRESHOLD = 55
 NIGHT_THRESHOLD = 45
 
-REPORT_DIR = "noise-map/reports"
+# ---- Setup report directory ----
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))  # path where script runs
+REPORT_DIR = os.path.join(SCRIPT_DIR, "reports")        # reports will go here
+os.makedirs(REPORT_DIR, exist_ok=True)
+print(f"Reports will be saved inside: {REPORT_DIR}")
 
 # ---- Fetch last 7 days of data ----
 client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
@@ -28,7 +32,7 @@ query = f'''
 from(bucket: "{BUCKET}")
   |> range(start: {start.isoformat()}, stop: {stop.isoformat()})
   |> filter(fn: (r) => r._measurement == "noise")
-  |> filter(fn: (r) => r._field == "noise_LAeq")
+  |> filter(fn: (r) => r._field == "LAeq")
   |> aggregateWindow(every: 5m, fn: mean)
   |> yield(name: "mean")
 '''
@@ -41,7 +45,7 @@ for table in tables:
         records.append({
             "time": record.get_time(),
             "value": record.get_value(),
-            "sensor": record.values.get("sensor_id")
+            "sensor": record.values.get("sensor_id")  # must match backfill tag
         })
 
 if not records:
@@ -55,6 +59,7 @@ df = df.set_index("time").sort_index()
 for sensor_id, g in df.groupby("sensor"):
     sensor_dir = os.path.join(REPORT_DIR, str(sensor_id))
     os.makedirs(sensor_dir, exist_ok=True)
+    print(f"Generating report for sensor {sensor_id} in {sensor_dir}")
 
     g["hour"] = g.index.hour
     g["is_day"] = g["hour"].between(7, 22)
