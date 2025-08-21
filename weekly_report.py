@@ -9,7 +9,7 @@ from influxdb_client import InfluxDBClient
 INFLUX_URL = os.getenv("INFLUX_URL")
 INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
 INFLUX_ORG = os.getenv("INFLUX_ORG")
-BUCKET = "noise"
+BUCKET = "sensor_data"
 TZ = pytz.timezone("Europe/Amsterdam")
 
 DAY_THRESHOLD = 55
