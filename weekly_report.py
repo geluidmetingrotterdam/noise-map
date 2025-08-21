@@ -9,7 +9,7 @@ from influxdb_client import InfluxDBClient
 INFLUX_URL = os.getenv("INFLUX_URL")
 INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
 INFLUX_ORG = os.getenv("INFLUX_ORG")
-BUCKET = "sensor_data"
+BUCKET = os.getenv("INFLUX_BUCKET", "sensor_data")
 TZ = pytz.timezone("Europe/Amsterdam")
 
 DAY_THRESHOLD = 55
@@ -22,11 +22,12 @@ today = datetime.now(TZ)
 start = today - timedelta(days=7)
 stop = today
 
+# Flux query: note _field is "noise_LAeq" and measurement is "noise"
 query = f'''
 from(bucket: "{BUCKET}")
   |> range(start: {start.isoformat()}, stop: {stop.isoformat()})
   |> filter(fn: (r) => r._measurement == "noise")
-  |> filter(fn: (r) => r._field == "value")
+  |> filter(fn: (r) => r._field == "noise_LAeq")
   |> aggregateWindow(every: 5m, fn: mean)
   |> yield(name: "mean")
 '''
@@ -39,7 +40,7 @@ for table in tables:
         records.append({
             "time": record.get_time(),
             "value": record.get_value(),
-            "sensor": record.values.get("sensor")
+            "sensor": record.values.get("sensor_id")  # match backfill tag
         })
 
 if not records:
@@ -139,3 +140,5 @@ for sensor_id, g in df.groupby("sensor"):
         f.write(html)
 
     print(f"✅ Report generated for sensor {sensor_id}")
+
+client.close()
