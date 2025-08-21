@@ -22,21 +22,33 @@ today = datetime.now(TZ).date()
 start = today - timedelta(days=7)
 stop = today
 
+# Convert to ISO 8601 strings for Flux
+start_iso = start.isoformat() + "T00:00:00Z"
+stop_iso = stop.isoformat() + "T00:00:00Z"
+
 query = f'''
 from(bucket: "{BUCKET}")
-  |> range(start: {start}, stop: {stop})
+  |> range(start: {start_iso}, stop: {stop_iso})
   |> filter(fn: (r) => r._measurement == "noise")
   |> filter(fn: (r) => r._field == "LAeq")
   |> aggregateWindow(every: 5m, fn: mean)
-  |> yield(name: "mean")
 '''
 
 tables = client.query_api().query(query)
 
+# ---- Build DataFrame ----
 records = []
 for table in tables:
     for record in table.records:
-        records.append({"time": record.get_time(), "value": record.get_value(), "sensor": record.values.get("sensor")})
+        records.append({
+            "time": record.get_time(),
+            "value": record.get_value(),
+            "sensor": record.values.get("sensor")
+        })
+
+if not records:
+    print("⚠️ No records returned. Check your bucket, measurement, or date range.")
+    exit()
 
 df = pd.DataFrame(records)
 df["time"] = pd.to_datetime(df["time"]).dt.tz_convert(TZ)
@@ -55,14 +67,14 @@ for sensor_id, g in df.groupby("sensor"):
     total_day_minutes = g[g["is_day"] & g["exceeded"]].shape[0] * 5
     total_night_minutes = g[~g["is_day"] & g["exceeded"]].shape[0] * 5
 
-    # detect events
+    # Detect events
     g["event"] = (g["exceeded"] != g["exceeded"].shift()).cumsum()
     events = g[g["exceeded"]].groupby("event").size() * 5
     num_events = len(events)
     avg_duration = events.mean() if num_events > 0 else 0
     max_duration = events.max() if num_events > 0 else 0
 
-    # summary table
+    # ---- Summary table ----
     summary = pd.DataFrame([{
         "Sensor": sensor_id,
         "LAeq Day Avg": round(g[g["is_day"]]["value"].mean(), 1),
