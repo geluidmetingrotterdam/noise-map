@@ -9,7 +9,7 @@ from influxdb_client import InfluxDBClient
 INFLUX_URL = os.getenv("INFLUX_URL")
 INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
 INFLUX_ORG = os.getenv("INFLUX_ORG")
-BUCKET = os.getenv("INFLUX_BUCKET", "sensor_data")
+BUCKET = "sensor_data"
 TZ = pytz.timezone("Europe/Amsterdam")
 
 DAY_THRESHOLD = 55
@@ -22,12 +22,11 @@ today = datetime.now(TZ)
 start = today - timedelta(days=7)
 stop = today
 
-# Flux query: note _field is "noise_LAeq" and measurement is "noise"
 query = f'''
 from(bucket: "{BUCKET}")
   |> range(start: {start.isoformat()}, stop: {stop.isoformat()})
   |> filter(fn: (r) => r._measurement == "noise")
-  |> filter(fn: (r) => r._field == "noise_LAeq")
+  |> filter(fn: (r) => r._field == "LAeq")
   |> aggregateWindow(every: 5m, fn: mean)
   |> yield(name: "mean")
 '''
@@ -40,7 +39,7 @@ for table in tables:
         records.append({
             "time": record.get_time(),
             "value": record.get_value(),
-            "sensor": record.values.get("sensor_id")  # match backfill tag
+            "sensor": record.values.get("sensor_id") or record.values.get("sensor")
         })
 
 if not records:
@@ -50,9 +49,13 @@ df = pd.DataFrame(records)
 df["time"] = pd.to_datetime(df["time"]).dt.tz_convert(TZ)
 df = df.set_index("time").sort_index()
 
+# ---- Base folder for reports ----
+BASE_DIR = os.path.join(os.path.dirname(__file__), "reports")
+os.makedirs(BASE_DIR, exist_ok=True)
+
 # ---- Process per sensor ----
 for sensor_id, g in df.groupby("sensor"):
-    sensor_dir = f"docs/reports/{sensor_id}"
+    sensor_dir = os.path.join(BASE_DIR, str(sensor_id))
     os.makedirs(sensor_dir, exist_ok=True)
 
     g["hour"] = g.index.hour
@@ -91,7 +94,7 @@ for sensor_id, g in df.groupby("sensor"):
     plt.ylabel("dB")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"{sensor_dir}/weekly_noise.png")
+    plt.savefig(os.path.join(sensor_dir, "weekly_noise.png"))
     plt.close()
 
     pivot = g.groupby([g.index.date, g.index.hour])["exceeded"].mean().unstack(fill_value=0)
@@ -102,7 +105,7 @@ for sensor_id, g in df.groupby("sensor"):
     plt.colorbar(label="Fraction above threshold")
     plt.title("Exceedance Heatmap (hour vs day)")
     plt.tight_layout()
-    plt.savefig(f"{sensor_dir}/exceedance_heatmap.png")
+    plt.savefig(os.path.join(sensor_dir, "exceedance_heatmap.png"))
     plt.close()
 
     # ---- HTML with PDF button ----
@@ -136,9 +139,8 @@ for sensor_id, g in df.groupby("sensor"):
     </html>
     """
 
-    with open(f"{sensor_dir}/weekly_report.html", "w", encoding="utf-8") as f:
+    html_file = os.path.join(sensor_dir, "weekly_report.html")
+    with open(html_file, "w", encoding="utf-8") as f:
         f.write(html)
 
-    print(f"✅ Report generated for sensor {sensor_id}")
-
-client.close()
+    print(f"✅ Report generated for sensor {sensor_id} at {os.path.abspath(html_file)}")
