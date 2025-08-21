@@ -143,4 +143,6 @@ for sensor_id, g in df.groupby("sensor"):
     with open(f"{sensor_dir}/weekly_report.html", "w", encoding="utf-8") as f:
         f.write(html)
 
-    print(f"✅ Report generated for sensor {sensor_id}")
+   full_path = os.path.abspath(sensor_dir)
+print(f"✅ Report generated for sensor {sensor_id}")
+print(f"   → Files are in: {full_path}")
