@@ -10,7 +10,7 @@ INFLUX_URL = os.getenv("INFLUX_URL")
 INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
 INFLUX_ORG = os.getenv("INFLUX_ORG")
 BUCKET = os.getenv("INFLUX_BUCKET", "sensor_data")  # same as backfill
-BASE_DIR = os.path.join(os.getcwd(), "noise-map")
+base_dir = os.path.join(os.path.dirname(__file__), "docs", "reports")
 REPORTS_DIR = os.path.join(BASE_DIR, "reports")      # final reports path
 TZ = pytz.timezone("Europe/Amsterdam")
 
