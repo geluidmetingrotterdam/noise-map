@@ -18,25 +18,21 @@ NIGHT_THRESHOLD = 45
 # ---- Fetch last 7 days of data ----
 client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
 
-today = datetime.now(TZ).date()
+today = datetime.now(TZ)
 start = today - timedelta(days=7)
 stop = today
 
-# Convert to ISO 8601 strings for Flux
-start_iso = start.isoformat() + "T00:00:00Z"
-stop_iso = stop.isoformat() + "T00:00:00Z"
-
 query = f'''
 from(bucket: "{BUCKET}")
-  |> range(start: {start_iso}, stop: {stop_iso})
+  |> range(start: {start.isoformat()}, stop: {stop.isoformat()})
   |> filter(fn: (r) => r._measurement == "noise")
   |> filter(fn: (r) => r._field == "LAeq")
   |> aggregateWindow(every: 5m, fn: mean)
+  |> yield(name: "mean")
 '''
 
 tables = client.query_api().query(query)
 
-# ---- Build DataFrame ----
 records = []
 for table in tables:
     for record in table.records:
@@ -47,8 +43,7 @@ for table in tables:
         })
 
 if not records:
-    print("⚠️ No records returned. Check your bucket, measurement, or date range.")
-    exit()
+    raise ValueError("⚠️ No records returned. Check your bucket, measurement, or date range.")
 
 df = pd.DataFrame(records)
 df["time"] = pd.to_datetime(df["time"]).dt.tz_convert(TZ)
@@ -60,7 +55,7 @@ for sensor_id, g in df.groupby("sensor"):
     os.makedirs(sensor_dir, exist_ok=True)
 
     g["hour"] = g.index.hour
-    g["is_day"] = g["hour"].between(7,22)
+    g["is_day"] = g["hour"].between(7, 22)
     g["threshold"] = g.apply(lambda r: DAY_THRESHOLD if r["is_day"] else NIGHT_THRESHOLD, axis=1)
     g["exceeded"] = g["value"] > g["threshold"]
 
@@ -74,7 +69,7 @@ for sensor_id, g in df.groupby("sensor"):
     avg_duration = events.mean() if num_events > 0 else 0
     max_duration = events.max() if num_events > 0 else 0
 
-    # ---- Summary table ----
+    # Summary table
     summary = pd.DataFrame([{
         "Sensor": sensor_id,
         "LAeq Day Avg": round(g[g["is_day"]]["value"].mean(), 1),
@@ -87,7 +82,7 @@ for sensor_id, g in df.groupby("sensor"):
     }])
 
     # ---- Charts ----
-    plt.figure(figsize=(12,6))
+    plt.figure(figsize=(12, 6))
     g["value"].plot(alpha=0.7)
     plt.axhline(DAY_THRESHOLD, color="orange", linestyle="--", label="Day threshold")
     plt.axhline(NIGHT_THRESHOLD, color="purple", linestyle="--", label="Night threshold")
@@ -98,8 +93,8 @@ for sensor_id, g in df.groupby("sensor"):
     plt.savefig(f"{sensor_dir}/weekly_noise.png")
     plt.close()
 
-    pivot = g.groupby([g.index.date,g.index.hour])["exceeded"].mean().unstack(fill_value=0)
-    plt.figure(figsize=(10,5))
+    pivot = g.groupby([g.index.date, g.index.hour])["exceeded"].mean().unstack(fill_value=0)
+    plt.figure(figsize=(10, 5))
     plt.imshow(pivot.T, aspect="auto", cmap="Reds", origin="lower")
     plt.yticks(range(24), range(24))
     plt.xticks(range(len(pivot.index)), [str(d)[5:] for d in pivot.index], rotation=45)
@@ -143,6 +138,4 @@ for sensor_id, g in df.groupby("sensor"):
     with open(f"{sensor_dir}/weekly_report.html", "w", encoding="utf-8") as f:
         f.write(html)
 
-   full_path = os.path.abspath(sensor_dir)
-print(f"✅ Report generated for sensor {sensor_id}")
-print(f"   → Files are in: {full_path}")
+    print(f"✅ Report generated for sensor {sensor_id}")
