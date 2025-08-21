@@ -26,7 +26,7 @@ query = f'''
 from(bucket: "{BUCKET}")
   |> range(start: {start.isoformat()}, stop: {stop.isoformat()})
   |> filter(fn: (r) => r._measurement == "noise")
-  |> filter(fn: (r) => r._field == "LAeq")
+  |> filter(fn: (r) => r._field == "value")
   |> aggregateWindow(every: 5m, fn: mean)
   |> yield(name: "mean")
 '''
