@@ -15,6 +15,8 @@ TZ = pytz.timezone("Europe/Amsterdam")
 DAY_THRESHOLD = 55
 NIGHT_THRESHOLD = 45
 
+REPORT_DIR = "noise-map/reports"
+
 # ---- Fetch last 7 days of data ----
 client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
 
@@ -26,7 +28,7 @@ query = f'''
 from(bucket: "{BUCKET}")
   |> range(start: {start.isoformat()}, stop: {stop.isoformat()})
   |> filter(fn: (r) => r._measurement == "noise")
-  |> filter(fn: (r) => r._field == "LAeq")
+  |> filter(fn: (r) => r._field == "noise_LAeq")
   |> aggregateWindow(every: 5m, fn: mean)
   |> yield(name: "mean")
 '''
@@ -39,7 +41,7 @@ for table in tables:
         records.append({
             "time": record.get_time(),
             "value": record.get_value(),
-            "sensor": record.values.get("sensor_id") or record.values.get("sensor")
+            "sensor": record.values.get("sensor_id")
         })
 
 if not records:
@@ -49,13 +51,9 @@ df = pd.DataFrame(records)
 df["time"] = pd.to_datetime(df["time"]).dt.tz_convert(TZ)
 df = df.set_index("time").sort_index()
 
-# ---- Base folder for reports ----
-BASE_DIR = os.path.join(os.path.dirname(__file__), "reports")
-os.makedirs(BASE_DIR, exist_ok=True)
-
 # ---- Process per sensor ----
 for sensor_id, g in df.groupby("sensor"):
-    sensor_dir = os.path.join(BASE_DIR, str(sensor_id))
+    sensor_dir = os.path.join(REPORT_DIR, str(sensor_id))
     os.makedirs(sensor_dir, exist_ok=True)
 
     g["hour"] = g.index.hour
@@ -139,8 +137,7 @@ for sensor_id, g in df.groupby("sensor"):
     </html>
     """
 
-    html_file = os.path.join(sensor_dir, "weekly_report.html")
-    with open(html_file, "w", encoding="utf-8") as f:
+    with open(os.path.join(sensor_dir, "weekly_report.html"), "w", encoding="utf-8") as f:
         f.write(html)
 
-    print(f"✅ Report generated for sensor {sensor_id} at {os.path.abspath(html_file)}")
+    print(f"✅ Report generated for sensor {sensor_id}")
