@@ -2,7 +2,7 @@ name: Weekly Noise Reports
 
 on:
   schedule:
-    - cron: '30 5 * * 1'   # every Monday 05:30 UTC
+    - cron: '30 5 * * 1'   # every Monday
   workflow_dispatch:
 
 jobs:
@@ -34,10 +34,9 @@ jobs:
         run: |
           python weekly_report.py
 
-      - name: Commit reports to repo
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/reports
-          git commit -m "Update weekly reports [skip ci]" || echo "No changes to commit"
-          git push
+      - name: Deploy reports to gh-pages-reports
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages-reports
+          publish_dir: ./reports
