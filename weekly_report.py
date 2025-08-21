@@ -9,18 +9,19 @@ from influxdb_client import InfluxDBClient
 INFLUX_URL = os.getenv("INFLUX_URL")
 INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
 INFLUX_ORG = os.getenv("INFLUX_ORG")
-BUCKET = os.getenv("INFLUX_BUCKET", "sensor_data")  # matches backfill
-REPORTS_DIR = "reports"  # inside noise-map
+BUCKET = os.getenv("INFLUX_BUCKET", "sensor_data")  # same as backfill
+BASE_DIR = os.path.join(os.getcwd(), "noise-map")
+REPORTS_DIR = os.path.join(BASE_DIR, "reports")      # final reports path
 TZ = pytz.timezone("Europe/Amsterdam")
 
 DAY_THRESHOLD = 55
 NIGHT_THRESHOLD = 45
 
+os.makedirs(REPORTS_DIR, exist_ok=True)
 print(f"Reports will be saved inside: {os.path.abspath(REPORTS_DIR)}")
 
 # ---- Fetch last 7 full days of data ----
 client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
-
 today = datetime.now(TZ).date()
 start = today - timedelta(days=7)
 stop = today
@@ -35,14 +36,13 @@ from(bucket: "{BUCKET}")
 '''
 
 tables = client.query_api().query(query)
-
 records = []
 for table in tables:
     for record in table.records:
         records.append({
             "time": record.get_time(),
             "value": record.get_value(),
-            "sensor": record.values.get("sensor_id")  # matches backfill tag
+            "sensor": record.values.get("sensor_id")
         })
 
 if not records:
@@ -52,13 +52,15 @@ df = pd.DataFrame(records)
 df["time"] = pd.to_datetime(df["time"]).dt.tz_convert(TZ)
 df = df.set_index("time").sort_index()
 
-# ---- Ensure reports directory exists ----
-os.makedirs(REPORTS_DIR, exist_ok=True)
-
 # ---- Process per sensor ----
 for sensor_id, g in df.groupby("sensor"):
     sensor_dir = os.path.join(REPORTS_DIR, str(sensor_id))
     os.makedirs(sensor_dir, exist_ok=True)
+    print(f"Processing sensor {sensor_id} → folder: {os.path.abspath(sensor_dir)}")
+
+    if g.empty:
+        print(f"⚠️ No data for sensor {sensor_id}, skipping...")
+        continue
 
     g["hour"] = g.index.hour
     g["is_day"] = g["hour"].between(7, 22)
@@ -68,14 +70,12 @@ for sensor_id, g in df.groupby("sensor"):
     total_day_minutes = g[g["is_day"] & g["exceeded"]].shape[0] * 5
     total_night_minutes = g[~g["is_day"] & g["exceeded"]].shape[0] * 5
 
-    # Detect events
     g["event"] = (g["exceeded"] != g["exceeded"].shift()).cumsum()
     events = g[g["exceeded"]].groupby("event").size() * 5
     num_events = len(events)
     avg_duration = events.mean() if num_events > 0 else 0
     max_duration = events.max() if num_events > 0 else 0
 
-    # Summary table
     summary = pd.DataFrame([{
         "Sensor": sensor_id,
         "LAeq Day Avg": round(g[g["is_day"]]["value"].mean(), 1),
@@ -141,7 +141,8 @@ for sensor_id, g in df.groupby("sensor"):
     </html>
     """
 
-    with open(os.path.join(sensor_dir, "weekly_report.html"), "w", encoding="utf-8") as f:
+    html_file = os.path.join(sensor_dir, "weekly_report.html")
+    with open(html_file, "w", encoding="utf-8") as f:
         f.write(html)
 
-    print(f"✅ Report generated for sensor {sensor_id}")
+    print(f"✅ Report generated for sensor {sensor_id} → {html_file}")
