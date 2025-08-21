@@ -1,12 +1,12 @@
-name: Weekly Report
+name: Weekly Noise Report
 
 on:
   schedule:
-    - cron: "0 2 * * 1"   # every Monday 02:00 UTC
-  workflow_dispatch:       # allow manual run
+    - cron: '0 5 * * MON'   # every Monday 05:00 UTC
+  workflow_dispatch:        # allows manual trigger
 
 jobs:
-  build:
+  weekly-report:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,13 +16,20 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: '3.x'
 
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pandas matplotlib  # extra deps for reporting
 
       - name: Run weekly report script
+        env:
+          INFLUX_URL:    ${{ secrets.INFLUX_URL }}
+          INFLUX_TOKEN:  ${{ secrets.INFLUX_TOKEN }}
+          INFLUX_ORG:    ${{ secrets.INFLUX_ORG }}
+          INFLUX_BUCKET: ${{ secrets.INFLUX_BUCKET }}
         run: |
           python weekly_report.py
 
