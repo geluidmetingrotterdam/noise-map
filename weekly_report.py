@@ -22,7 +22,7 @@ def find_last_week_with_data(sensor_id, max_weeks_back=6):
         dfs = []
         for i in range(7):
             day = monday + timedelta(days=i)
-            url = f"https://archive.sensor.community/{day}/{sensor_id}_noise.csv"
+            url = f"https://archive.sensor.community/{day}/{day.strftime('%Y-%m-%d')}_laerm_sensor_{sensor_id}.csv"
             resp = requests.get(url)
             if resp.status_code == 200:
                 try:
