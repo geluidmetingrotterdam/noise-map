@@ -16,21 +16,33 @@ today = datetime.utcnow().date()
 last_monday = today - timedelta(days=today.weekday() + 7)
 last_sunday = last_monday + timedelta(days=6)
 
-# Download CSV from Sensor.Community archive
-url = f"https://archive.sensor.community/{last_monday.strftime('%Y-%m-%d')}/{SENSOR_ID}_noise.csv"
-resp = requests.get(url)
-if resp.status_code != 200:
-    raise RuntimeError(f"Could not download data: {url}")
+print(f"Generating report for {last_monday} → {last_sunday}")
 
-# Save and load CSV
-csv_path = os.path.join(REPORTS_DIR, f"{SENSOR_ID}_data.csv")
-with open(csv_path, "wb") as f:
-    f.write(resp.content)
+# ---- Download daily CSVs and combine ----
+dfs = []
+for i in range(7):
+    day = last_monday + timedelta(days=i)
+    url = f"https://archive.sensor.community/{day.strftime('%Y-%m-%d')}/{SENSOR_ID}_noise.csv"
+    print(f"Fetching {url}")
+    resp = requests.get(url)
+    if resp.status_code == 200:
+        tmp_path = os.path.join(REPORTS_DIR, f"{SENSOR_ID}_{day}.csv")
+        with open(tmp_path, "wb") as f:
+            f.write(resp.content)
+        try:
+            df_day = pd.read_csv(tmp_path, sep=";")
+            df_day["timestamp"] = pd.to_datetime(df_day["timestamp"])
+            dfs.append(df_day)
+        except Exception as e:
+            print(f"⚠️ Could not parse {url}: {e}")
+    else:
+        print(f"❌ No data for {day}")
 
-df = pd.read_csv(csv_path, sep=";")
-df["timestamp"] = pd.to_datetime(df["timestamp"])
-df = df.set_index("timestamp")
-df = df[(df.index.date >= last_monday) & (df.index.date <= last_sunday)]
+if not dfs:
+    raise RuntimeError("No data downloaded for the selected week!")
+
+df = pd.concat(dfs)
+df = df.set_index("timestamp").sort_index()
 
 # ---- Make plot ----
 plt.figure(figsize=(10, 4))
