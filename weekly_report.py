@@ -1,80 +1,75 @@
+#!/usr/bin/env python3
 import os
+import io
 import requests
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
-from reportlab.lib.styles import getSampleStyleSheet
+from matplotlib.backends.backend_pdf import PdfPages
 
-# ---- Config ----
-ROTTERDAM_SENSORS = [
-    89747, 94284, 94448, 94449, 94687, 94693, 94701, 94735
-]
-REPORTS_DIR = "reports"
-os.makedirs(REPORTS_DIR, exist_ok=True)
+# -------- Settings --------
+SENSOR_ID = "89747"     # change sensor ID if needed
+START_DATE = datetime(2025, 8, 4)  # Monday
+END_DATE   = datetime(2025, 8, 10) # Sunday
+REPORT_NAME = f"weekly_report_{SENSOR_ID}_{START_DATE.date()}_{END_DATE.date()}.pdf"
 
-today = datetime.utcnow().date()
+# -------- Download + Parse --------
+all_data = []
 
-def find_last_week_with_data(sensor_id, max_weeks_back=6):
-    for week_shift in range(max_weeks_back):
-        monday = today - timedelta(days=today.weekday() + 7*(week_shift+1))
-        sunday = monday + timedelta(days=6)
-        dfs = []
-        for i in range(7):
-            day = monday + timedelta(days=i)
-            url = f"https://archive.sensor.community/{day}/{day.strftime('%Y-%m-%d')}_laerm_sensor_{sensor_id}.csv"
-            resp = requests.get(url)
-            if resp.status_code == 200:
-                try:
-                    df_day = pd.read_csv(pd.compat.StringIO(resp.text), sep=";")
-                    df_day["timestamp"] = pd.to_datetime(df_day["timestamp"])
-                    dfs.append(df_day)
-                except Exception as e:
-                    print(f"⚠️ Could not parse {url}: {e}")
-        if dfs:
-            return monday, sunday, pd.concat(dfs)
-    return None, None, pd.DataFrame()
+current = START_DATE
+while current <= END_DATE:
+    date_str = current.strftime("%Y-%m-%d")
+    url = f"https://archive.sensor.community/{date_str}/{date_str}_laerm_sensor_{SENSOR_ID}.csv"
+    print(f"Fetching {url}")
+    try:
+        r = requests.get(url, timeout=20)
+        if r.status_code != 200:
+            print(f"❌ No file for {date_str}")
+            current += timedelta(days=1)
+            continue
 
-# ---- Pick first sensor with data ----
-for sensor in ROTTERDAM_SENSORS:
-    monday, sunday, df = find_last_week_with_data(sensor)
-    if not df.empty:
-        SENSOR_ID = sensor
-        break
+        df = pd.read_csv(io.StringIO(r.text), sep=";")
 
-if df.empty:
-    raise RuntimeError("No data found for any Rotterdam sensor in the past 6 weeks.")
+        # Standardize column names
+        df = df.rename(columns={
+            "timestamp": "timestamp",
+            "laeq": "LAeq",
+            "lamax": "LAmax",
+            "lamin": "LAmin"
+        })
 
-df = df.set_index("timestamp").sort_index()
+        # Only keep what we need
+        df = df[["timestamp", "LAeq", "LAmax", "LAmin"]]
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
 
-# ---- Make LAeq / LAmax / LAmin plot ----
-plt.figure(figsize=(10,4))
-if "LAeq" in df.columns:
-    df["LAeq"].plot(label="LAeq", color="blue")
-if "LAmax" in df.columns:
-    df["LAmax"].plot(label="LAmax", color="red", alpha=0.6)
-if "LAmin" in df.columns:
-    df["LAmin"].plot(label="LAmin", color="green", alpha=0.6)
-plt.title(f"Weekly Noise – Sensor {SENSOR_ID}\n{monday} to {sunday}")
-plt.ylabel("dB(A)")
-plt.xlabel("Time")
-plt.grid(True)
-plt.legend()
-plt.tight_layout()
-plot_file = os.path.join(REPORTS_DIR, "weekly_plot.png")
-plt.savefig(plot_file, dpi=150)
-plt.close()
+        all_data.append(df)
 
-# ---- Create PDF ----
-pdf_file = os.path.join(REPORTS_DIR, f"weekly_report_{SENSOR_ID}.pdf")
-doc = SimpleDocTemplate(pdf_file)
-styles = getSampleStyleSheet()
-story = [
-    Paragraph(f"Weekly Noise Report – Sensor {SENSOR_ID}", styles["Title"]),
-    Paragraph(f"Period: {monday} – {sunday}", styles["Normal"]),
-    Spacer(1,20),
-    Image(plot_file, width=500, height=200)
-]
-doc.build(story)
+    except Exception as e:
+        print(f"⚠️ Could not parse {url}: {e}")
 
-print(f"✅ PDF report created: {pdf_file}")
+    current += timedelta(days=1)
+
+if not all_data:
+    raise RuntimeError("No data found for the selected week!")
+
+# Merge all
+data = pd.concat(all_data).sort_values("timestamp")
+data.set_index("timestamp", inplace=True)
+
+# -------- Plotting --------
+with PdfPages(REPORT_NAME) as pdf:
+    plt.figure(figsize=(12, 6))
+    plt.plot(data.index, data["LAeq"], label="LAeq", color="blue")
+    plt.plot(data.index, data["LAmax"], label="LAmax", color="red", alpha=0.6)
+    plt.plot(data.index, data["LAmin"], label="LAmin", color="green", alpha=0.6)
+
+    plt.title(f"Noise Report for Sensor {SENSOR_ID}\n{START_DATE.date()} to {END_DATE.date()}")
+    plt.xlabel("Date/Time")
+    plt.ylabel("dB(A)")
+    plt.legend()
+    plt.grid(True)
+
+    pdf.savefig()
+    plt.close()
+
+print(f"✅ Weekly PDF report created: {REPORT_NAME}")
