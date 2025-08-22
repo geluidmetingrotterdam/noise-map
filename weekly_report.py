@@ -6,62 +6,75 @@ from datetime import datetime, timedelta
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet
 
-# ---- Settings ----
-SENSOR_ID = 89747
+# ---- Config ----
+ROTTERDAM_SENSORS = [
+    89747, 94284, 94448, 94449, 94687, 94693, 94701, 94735
+]
 REPORTS_DIR = "reports"
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
-# Define last Monday–Sunday
 today = datetime.utcnow().date()
-last_monday = today - timedelta(days=today.weekday() + 7)
-last_sunday = last_monday + timedelta(days=6)
 
-print(f"Generating report for {last_monday} → {last_sunday}")
+def find_last_week_with_data(sensor_id, max_weeks_back=6):
+    for week_shift in range(max_weeks_back):
+        monday = today - timedelta(days=today.weekday() + 7*(week_shift+1))
+        sunday = monday + timedelta(days=6)
+        dfs = []
+        for i in range(7):
+            day = monday + timedelta(days=i)
+            url = f"https://archive.sensor.community/{day}/{sensor_id}_noise.csv"
+            resp = requests.get(url)
+            if resp.status_code == 200:
+                try:
+                    df_day = pd.read_csv(pd.compat.StringIO(resp.text), sep=";")
+                    df_day["timestamp"] = pd.to_datetime(df_day["timestamp"])
+                    dfs.append(df_day)
+                except Exception as e:
+                    print(f"⚠️ Could not parse {url}: {e}")
+        if dfs:
+            return monday, sunday, pd.concat(dfs)
+    return None, None, pd.DataFrame()
 
-# ---- Download daily CSVs and combine ----
-dfs = []
-for i in range(7):
-    day = last_monday + timedelta(days=i)
-    url = f"https://archive.sensor.community/{day.strftime('%Y-%m-%d')}/{SENSOR_ID}_noise.csv"
-    print(f"Fetching {url}")
-    resp = requests.get(url)
-    if resp.status_code == 200:
-        tmp_path = os.path.join(REPORTS_DIR, f"{SENSOR_ID}_{day}.csv")
-        with open(tmp_path, "wb") as f:
-            f.write(resp.content)
-        try:
-            df_day = pd.read_csv(tmp_path, sep=";")
-            df_day["timestamp"] = pd.to_datetime(df_day["timestamp"])
-            dfs.append(df_day)
-        except Exception as e:
-            print(f"⚠️ Could not parse {url}: {e}")
-    else:
-        print(f"❌ No data for {day}")
+# ---- Pick first sensor with data ----
+for sensor in ROTTERDAM_SENSORS:
+    monday, sunday, df = find_last_week_with_data(sensor)
+    if not df.empty:
+        SENSOR_ID = sensor
+        break
 
-if not dfs:
-    raise RuntimeError("No data downloaded for the selected week!")
+if df.empty:
+    raise RuntimeError("No data found for any Rotterdam sensor in the past 6 weeks.")
 
-df = pd.concat(dfs)
 df = df.set_index("timestamp").sort_index()
 
-# ---- Make plot ----
-plt.figure(figsize=(10, 4))
-df["dBA"].plot(title=f"Noise levels for sensor {SENSOR_ID}\n{last_monday} – {last_sunday}")
-plt.ylabel("dBA")
-plot_path = os.path.join(REPORTS_DIR, "plot.png")
-plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+# ---- Make LAeq / LAmax / LAmin plot ----
+plt.figure(figsize=(10,4))
+if "LAeq" in df.columns:
+    df["LAeq"].plot(label="LAeq", color="blue")
+if "LAmax" in df.columns:
+    df["LAmax"].plot(label="LAmax", color="red", alpha=0.6)
+if "LAmin" in df.columns:
+    df["LAmin"].plot(label="LAmin", color="green", alpha=0.6)
+plt.title(f"Weekly Noise – Sensor {SENSOR_ID}\n{monday} to {sunday}")
+plt.ylabel("dB(A)")
+plt.xlabel("Time")
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plot_file = os.path.join(REPORTS_DIR, "weekly_plot.png")
+plt.savefig(plot_file, dpi=150)
 plt.close()
 
 # ---- Create PDF ----
-pdf_path = os.path.join(REPORTS_DIR, f"weekly_report_{SENSOR_ID}.pdf")
-doc = SimpleDocTemplate(pdf_path)
+pdf_file = os.path.join(REPORTS_DIR, f"weekly_report_{SENSOR_ID}.pdf")
+doc = SimpleDocTemplate(pdf_file)
 styles = getSampleStyleSheet()
 story = [
-    Paragraph(f"Weekly Report for Sensor {SENSOR_ID}", styles["Title"]),
-    Paragraph(f"Period: {last_monday} – {last_sunday}", styles["Normal"]),
-    Spacer(1, 20),
-    Image(plot_path, width=500, height=200)
+    Paragraph(f"Weekly Noise Report – Sensor {SENSOR_ID}", styles["Title"]),
+    Paragraph(f"Period: {monday} – {sunday}", styles["Normal"]),
+    Spacer(1,20),
+    Image(plot_file, width=500, height=200)
 ]
 doc.build(story)
 
-print(f"✅ Report saved to {pdf_path}")
+print(f"✅ PDF report created: {pdf_file}")
