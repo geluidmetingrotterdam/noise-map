@@ -9,13 +9,17 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 # ===== SETTINGS =====
 SENSOR_ID = "89747"    # change to another sensor if needed
-REPORT_FILE = f"weekly_report_{SENSOR_ID}.pdf"
+REPORTS_DIR = "reports"  # folder to save PDFs
 ARCHIVE_URL = "https://archive.sensor.community"
 # ====================
 
+# Make sure reports folder exists
+os.makedirs(REPORTS_DIR, exist_ok=True)
+
+REPORT_FILE = os.path.join(REPORTS_DIR, f"weekly_report_{SENSOR_ID}.pdf")
+
 def get_last_full_week():
     today = datetime.utcnow().date()
-    # last Sunday
     last_sunday = today - timedelta(days=today.weekday() + 1)
     last_monday = last_sunday - timedelta(days=6)
     return last_monday, last_sunday
