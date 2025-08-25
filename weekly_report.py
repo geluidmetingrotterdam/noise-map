@@ -1,178 +1,150 @@
 #!/usr/bin/env python3
 import os
-import io
-import requests
+import pytz
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
-from matplotlib.backends.backend_pdf import PdfPages
+from influxdb_client import InfluxDBClient
 
-# ===== SETTINGS =====
-SENSOR_IDS = ["89747"]    # add more IDs if needed
-REPORTS_DIR = "reports"
-ARCHIVE_URL = "https://archive.sensor.community"
-DAY_THRESHOLD = 55
-NIGHT_THRESHOLD = 45
-# ====================
+# ---- Settings ----
+INFLUX_URL = os.getenv("INFLUX_URL")
+INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
+INFLUX_ORG = os.getenv("INFLUX_ORG")
+BUCKET = os.getenv("INFLUX_BUCKET", "sensor_data")  # same as backfill
+BASE_DIR = os.path.join(os.getcwd(), "noise-map")
+REPORTS_DIR = os.path.join(BASE_DIR, "reports")
+TZ = pytz.timezone("Europe/Amsterdam")
 
+# ---- Thresholds ----
+# Dutch (RIVM / GGD / Omgevingswet)
+DAY_THRESHOLD_NL = 65
+NIGHT_THRESHOLD_NL = 55
+# WHO guideline thresholds
+DAY_THRESHOLD_WHO = 55
+NIGHT_THRESHOLD_WHO = 45
+
+# Ensure reports folder exists
 os.makedirs(REPORTS_DIR, exist_ok=True)
+print(f"Reports will be saved inside: {os.path.abspath(REPORTS_DIR)}")
 
-def get_last_full_week():
-    today = datetime.utcnow().date()
-    last_sunday = today - timedelta(days=today.weekday() + 1)
-    last_monday = last_sunday - timedelta(days=6)
-    return last_monday, last_sunday
+# ---- Fetch last 7 full days of data ----
+client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+today = datetime.now(TZ).date()
+start = today - timedelta(days=7)
+stop = today
 
-def fetch_csv(date, sensor_id):
-    date_str = date.strftime("%Y-%m-%d")
-    url = f"{ARCHIVE_URL}/{date_str}/{date_str}_laerm_sensor_{sensor_id}.csv"
-    try:
-        r = requests.get(url, timeout=20)
-        if r.status_code != 200:
-            print(f"❌ No file for {date_str}")
-            return None
-        df = pd.read_csv(io.StringIO(r.text), sep=";")
-        return df
-    except Exception as e:
-        print(f"⚠️ Error fetching {url}: {e}")
-        return None
+query = f'''
+from(bucket: "{BUCKET}")
+  |> range(start: {start.isoformat()}, stop: {stop.isoformat()})
+  |> filter(fn: (r) => r._measurement == "noise")
+  |> filter(fn: (r) => r._field == "noise_LAeq")
+  |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)
+  |> yield(name: "mean")
+'''
 
-def normalize_dataframe(df):
-    rename_map = {
-        "noise_LAeq": "LAeq",
-        "noise_LA_max": "LAmax",
-        "noise_LA_min": "LAmin",
-        "timestamp": "timestamp"
-    }
-    df = df.rename(columns=rename_map)
+tables = client.query_api().query(query)
+records = []
+for table in tables:
+    for record in table.records:
+        records.append({
+            "time": record.get_time(),
+            "value": record.get_value(),
+            "sensor": record.values.get("sensor_id")
+        })
 
-    needed = ["timestamp", "LAeq", "LAmax", "LAmin"]
-    if not all(col in df.columns for col in needed):
-        return None
+if not records:
+    raise ValueError("⚠️ No records returned. Check your bucket, measurement, or date range.")
 
-    df = df[needed].copy()
-    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-    df = df.dropna()
-    return df
+df = pd.DataFrame(records)
+df["time"] = pd.to_datetime(df["time"]).dt.tz_convert(TZ)
+df = df.set_index("time").sort_index()
 
-def analyze(df):
-    df["hour"] = df["timestamp"].dt.hour
-    df["is_day"] = df["hour"].between(7, 22)
-    df["threshold"] = df["is_day"].map({True: DAY_THRESHOLD, False: NIGHT_THRESHOLD})
-    df["exceeded"] = df["LAeq"] > df["threshold"]
+# ---- Process per sensor ----
+for sensor_id, g in df.groupby("sensor"):
+    sensor_dir = os.path.join(REPORTS_DIR, str(sensor_id))
+    os.makedirs(sensor_dir, exist_ok=True)
+    print(f"Processing sensor {sensor_id} → folder: {os.path.abspath(sensor_dir)}")
 
-    total_day_minutes = df[df["is_day"] & df["exceeded"]].shape[0] * 5
-    total_night_minutes = df[~df["is_day"] & df["exceeded"]].shape[0] * 5
+    if g.empty:
+        print(f"⚠️ No data for sensor {sensor_id}, skipping...")
+        continue
 
-    df["event"] = (df["exceeded"] != df["exceeded"].shift()).cumsum()
-    events = df[df["exceeded"]].groupby("event").size() * 5
+    g["hour"] = g.index.hour
+    g["is_day"] = g["hour"].between(7, 22)
+    # Analysis thresholds (NL)
+    g["threshold"] = g.apply(lambda r: DAY_THRESHOLD_NL if r["is_day"] else NIGHT_THRESHOLD_NL, axis=1)
+    g["exceeded"] = g["value"] > g["threshold"]
+
+    total_day_minutes = g[g["is_day"] & g["exceeded"]].shape[0] * 5
+    total_night_minutes = g[~g["is_day"] & g["exceeded"]].shape[0] * 5
+
+    # Detect events
+    g["event"] = (g["exceeded"] != g["exceeded"].shift()).cumsum()
+    events = g[g["exceeded"]].groupby("event").size() * 5
     num_events = len(events)
-    avg_duration = round(events.mean(), 1) if num_events else 0
-    max_duration = int(events.max()) if num_events else 0
+    avg_duration = events.mean() if num_events > 0 else 0
+    max_duration = events.max() if num_events > 0 else 0
 
+    # ---- Summary table ----
     summary = pd.DataFrame([{
-        "LAeq Day Avg": round(df[df["is_day"]]["LAeq"].mean(), 1),
-        "LAeq Night Avg": round(df[~df["is_day"]]["LAeq"].mean(), 1),
-        "Minutes > Day Thr": total_day_minutes,
-        "Minutes > Night Thr": total_night_minutes,
+        "Sensor": sensor_id,
+        "LAeq Day Avg": round(g[g["is_day"]]["value"].mean(), 1),
+        "LAeq Night Avg": round(g[~g["is_day"]]["value"].mean(), 1),
+        "Minutes > NL Day Thr (65 dB)": total_day_minutes,
+        "Minutes > NL Night Thr (55 dB)": total_night_minutes,
         "Noise Events": num_events,
-        "Avg Event Duration (min)": avg_duration,
+        "Avg Event Duration (min)": round(avg_duration, 1),
         "Max Event Duration (min)": max_duration
     }])
 
-    return summary
+    # ---- Charts ----
+    plt.figure(figsize=(12, 6))
+    g["value"].plot(alpha=0.7)
 
-def build_report(sensor_id, df, start_date, end_date):
-    sensor_dir = os.path.join(REPORTS_DIR, str(sensor_id))
-    os.makedirs(sensor_dir, exist_ok=True)
+    # Dutch thresholds (solid)
+    plt.axhline(DAY_THRESHOLD_NL, color="orange", linestyle="-", label="NL Day (65 dB)")
+    plt.axhline(NIGHT_THRESHOLD_NL, color="purple", linestyle="-", label="NL Night (55 dB)")
 
-    summary = analyze(df)
+    # WHO thresholds (dashed)
+    plt.axhline(DAY_THRESHOLD_WHO, color="orange", linestyle="--", label="WHO Day (55 dB)")
+    plt.axhline(NIGHT_THRESHOLD_WHO, color="purple", linestyle="--", label="WHO Night (45 dB)")
 
-    # ---- Chart 1: Weekly Noise ----
-    plt.figure(figsize=(12,6))
-    plt.plot(df["timestamp"], df["LAeq"], label="LAeq", color="blue")
-    plt.plot(df["timestamp"], df["LAmax"], label="LAmax", color="red", alpha=0.6)
-    plt.plot(df["timestamp"], df["LAmin"], label="LAmin", color="green", alpha=0.6)
-    plt.axhline(DAY_THRESHOLD, color="orange", linestyle="--", label="Day thr")
-    plt.axhline(NIGHT_THRESHOLD, color="purple", linestyle="--", label="Night thr")
-    plt.xlabel("Time")
+    plt.title(f"Weekly Noise Levels – Sensor {sensor_id}")
     plt.ylabel("dB(A)")
-    plt.title(f"Noise Report – Sensor {sensor_id}\n{start_date} → {end_date}")
     plt.legend()
-    plt.grid(True)
     plt.tight_layout()
     plt.savefig(os.path.join(sensor_dir, "weekly_noise.png"))
     plt.close()
 
-    # ---- Chart 2: Heatmap ----
-    pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["exceeded"].mean().unstack(fill_value=0)
-    plt.figure(figsize=(10,5))
+    # Heatmap of exceedances (NL thresholds)
+    pivot = g.groupby([g.index.date, g.index.hour])["exceeded"].mean().unstack(fill_value=0)
+    plt.figure(figsize=(10, 5))
     plt.imshow(pivot.T, aspect="auto", cmap="Reds", origin="lower")
     plt.yticks(range(24), range(24))
     plt.xticks(range(len(pivot.index)), [str(d)[5:] for d in pivot.index], rotation=45)
-    plt.colorbar(label="Fraction above threshold")
-    plt.title("Exceedance Heatmap (hour vs day)")
+    plt.colorbar(label="Fraction above NL threshold")
+    plt.title("Exceedance Heatmap (hour vs day, NL thresholds)")
     plt.tight_layout()
     plt.savefig(os.path.join(sensor_dir, "exceedance_heatmap.png"))
     plt.close()
 
-    # ---- PDF ----
-    pdf_file = os.path.join(sensor_dir, f"weekly_report_{sensor_id}.pdf")
-    with PdfPages(pdf_file) as pdf:
-        for img in ["weekly_noise.png", "exceedance_heatmap.png"]:
-            fig = plt.figure()
-            plt.imshow(plt.imread(os.path.join(sensor_dir, img)))
-            plt.axis("off")
-            pdf.savefig(fig)
-            plt.close(fig)
-    print(f"✅ PDF saved: {pdf_file}")
-
-    # ---- HTML ----
+    # ---- HTML with PDF button ----
     html = f"""
     <html>
-    <head><meta charset="utf-8"><title>Weekly Noise Report {sensor_id}</title></head>
+    <head>
+      <meta charset="utf-8">
+      <title>Weekly Noise Report – Sensor {sensor_id}</title>
+      <style>
+        body {{ font-family: Arial, sans-serif; margin: 40px; }}
+        h1 {{ color: #2c3e50; }}
+        table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
+        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: center; }}
+        th {{ background-color: #f4f4f4; }}
+        img {{ max-width: 100%; margin-top: 20px; border: 1px solid #ddd; }}
+        .btn {{ display:inline-block;padding:10px 15px;margin:10px 0;background:#2c3e50;color:#fff;text-decoration:none;border-radius:5px; }}
+      </style>
+    </head>
     <body>
-      <h1>Weekly Noise Report – Sensor {sensor_id}</h1>
-      <p>Generated on {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>
-      <h2>Summary</h2>
-      {summary.to_html(index=False)}
-      <h2>Weekly Noise Graph</h2>
-      <img src="weekly_noise.png"/>
-      <h2>Exceedance Heatmap</h2>
-      <img src="exceedance_heatmap.png"/>
-    </body>
-    </html>
-    """
-    with open(os.path.join(sensor_dir, "weekly_report.html"), "w", encoding="utf-8") as f:
-        f.write(html)
-
-def build_index(sensor_ids):
-    index_path = os.path.join(REPORTS_DIR, "index.html")
-    links = [f'<li><a href="{sid}/weekly_report.html">Sensor {sid}</a></li>' for sid in sensor_ids]
-    index_html = f"<html><body><h1>Weekly Noise Reports</h1><ul>{''.join(links)}</ul></body></html>"
-    with open(index_path, "w", encoding="utf-8") as f:
-        f.write(index_html)
-
-if __name__ == "__main__":
-    start_date, end_date = get_last_full_week()
-    for sensor_id in SENSOR_IDS:
-        print(f"📅 Generating report for sensor {sensor_id}: {start_date} → {end_date}")
-        all_data = []
-        current = start_date
-        while current <= end_date:
-            df = fetch_csv(current, sensor_id)
-            if df is not None:
-                df = normalize_dataframe(df)
-                if df is not None:
-                    all_data.append(df)
-            current += timedelta(days=1)
-
-        if not all_data:
-            print(f"⚠️ No valid data for sensor {sensor_id}")
-            continue
-
-        full_df = pd.concat(all_data).sort_values("timestamp")
-        build_report(sensor_id, full_df, start_date, end_date)
-
-    build_index(SENSOR_IDS)
-    print(f"✅ Index created at {os.path.join(REPORTS_DIR,'index.html')}")
+      <h1>Weekly Noise Report</h1>
+      <h2>Sensor {sensor_id}</h2>
+      <p>Generated on {datetime.now(TZ).strftime("%Y-%m-%
