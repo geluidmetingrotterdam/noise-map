@@ -25,8 +25,9 @@ jobs:
         run: |
           python ./weekly_report.py
 
-      - name: Upload HTML reports
+      - name: Upload reports (HTML + PNGs)
         uses: actions/upload-artifact@v4
         with:
           name: weekly-reports
-          path: reports/**/*
+          path: reports/**
+
