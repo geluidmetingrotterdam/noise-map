@@ -3,6 +3,8 @@ name: Weekly Report
 
 on:
   workflow_dispatch:   # run manually from Actions tab
+  schedule:
+    - cron: "0 6 * * MON"  # every Monday 06:00 UTC (08:00 NL)
 
 jobs:
   build-report:
@@ -19,19 +21,18 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests pandas matplotlib reportlab
-
-      - name: Install dependencies
-        run: |
-          pip install requests pandas matplotlib reportlab influxdb-client
+          pip install pandas matplotlib influxdb-client reportlab requests
 
       - name: Run report script
+        env:
+          INFLUX_URL: ${{ secrets.INFLUX_URL }}
+          INFLUX_TOKEN: ${{ secrets.INFLUX_TOKEN }}
+          INFLUX_ORG: ${{ secrets.INFLUX_ORG }}
         run: |
-          python ./weekly_report.py
+          python weekly_report.py
 
-      - name: Upload reports (HTML + PNGs)
+      - name: Upload reports (HTML + PNG + PDF)
         uses: actions/upload-artifact@v4
         with:
           name: weekly-reports
           path: reports/**
-
