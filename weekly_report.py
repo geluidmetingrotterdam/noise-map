@@ -11,8 +11,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 SENSOR_IDS = ["89747"]    # add more IDs if needed
 REPORTS_DIR = "reports"
 ARCHIVE_URL = "https://archive.sensor.community"
-DAY_THRESHOLD = 55
-NIGHT_THRESHOLD = 45
+DAY_THRESHOLD = 65
+NIGHT_THRESHOLD = 50
 # ====================
 
 os.makedirs(REPORTS_DIR, exist_ok=True)
