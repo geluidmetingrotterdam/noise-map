@@ -21,6 +21,10 @@ jobs:
         run: |
           pip install requests pandas matplotlib reportlab
 
+      - name: Install dependencies
+        run: |
+          pip install requests pandas matplotlib reportlab influxdb-client
+
       - name: Run report script
         run: |
           python ./weekly_report.py
