@@ -21,7 +21,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pandas matplotlib influxdb-client reportlab requests
+          pip install pandas matplotlib seaborn influxdb-client reportlab requests
 
       - name: Run report script
         env:
