@@ -4,6 +4,7 @@ import io
 import requests
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from datetime import datetime, timedelta
 from matplotlib.backends.backend_pdf import PdfPages
 
@@ -97,29 +98,36 @@ def build_report(sensor_id, df, start_date, end_date):
     plt.axhline(NIGHT_THRESHOLD, color="purple", linestyle="--", label="Night thr")
     plt.xlabel("Time")
     plt.ylabel("dB(A)")
-    plt.title(f"Noise Report – Sensor {sensor_id}\n{start_date} → {end_date}")
+    plt.title(f"Noise Report – Sensor {sensor_id}\n"
+              f"{start_date.strftime('%a %Y-%m-%d')} → {end_date.strftime('%a %Y-%m-%d')}")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(os.path.join(sensor_dir, "weekly_noise.png"))
     plt.close()
 
-    # ---- Chart 2: Heatmap ----
-    pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["exceeded"].mean().unstack(fill_value=0)
-    plt.figure(figsize=(10,5))
-    plt.imshow(pivot.T, aspect="auto", cmap="Reds", origin="lower")
-    plt.yticks(range(24), range(24))
-    plt.xticks(range(len(pivot.index)), [str(d)[5:] for d in pivot.index], rotation=45)
-    plt.colorbar(label="Fraction above threshold")
-    plt.title("Exceedance Heatmap (hour vs day)")
+    # ---- Chart 2: Heatmap with numbers ----
+    pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAeq"].mean().unstack(fill_value=float("nan"))
+    plt.figure(figsize=(12,6))
+    ax = sns.heatmap(
+        pivot.T,
+        cmap="RdYlGn_r",
+        annot=True,
+        fmt=".1f",
+        cbar_kws={'label': 'Avg LAeq (dB)'}
+    )
+    ax.set_ylabel("Hour of Day")
+    ax.set_xlabel("Date")
+    ax.set_xticklabels([d.strftime("%a\n%m-%d") for d in pivot.index], rotation=45, ha="right")
+    ax.set_title("Hourly Average LAeq with Values")
     plt.tight_layout()
-    plt.savefig(os.path.join(sensor_dir, "exceedance_heatmap.png"))
+    plt.savefig(os.path.join(sensor_dir, "heatmap_avg_LAeq.png"))
     plt.close()
 
     # ---- PDF ----
     pdf_file = os.path.join(sensor_dir, f"weekly_report_{sensor_id}.pdf")
     with PdfPages(pdf_file) as pdf:
-        for img in ["weekly_noise.png", "exceedance_heatmap.png"]:
+        for img in ["weekly_noise.png", "heatmap_avg_LAeq.png"]:
             fig = plt.figure()
             plt.imshow(plt.imread(os.path.join(sensor_dir, img)))
             plt.axis("off")
@@ -138,8 +146,8 @@ def build_report(sensor_id, df, start_date, end_date):
       {summary.to_html(index=False)}
       <h2>Weekly Noise Graph</h2>
       <img src="weekly_noise.png"/>
-      <h2>Exceedance Heatmap</h2>
-      <img src="exceedance_heatmap.png"/>
+      <h2>Heatmap (Hourly Average LAeq)</h2>
+      <img src="heatmap_avg_LAeq.png"/>
     </body>
     </html>
     """
