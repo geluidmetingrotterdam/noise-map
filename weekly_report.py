@@ -83,13 +83,15 @@ def analyze(df):
 
     return summary
 
+
+
 def build_report(sensor_id, df, start_date, end_date):
     sensor_dir = os.path.join(REPORTS_DIR, str(sensor_id))
     os.makedirs(sensor_dir, exist_ok=True)
 
     summary = analyze(df)
 
-    # ---- Chart 1: Weekly Noise ----
+    # ---- Chart 1: Weekly Noise (unchanged) ----
     plt.figure(figsize=(12,6))
     plt.plot(df["timestamp"], df["LAeq"], label="LAeq", color="blue")
     plt.plot(df["timestamp"], df["LAmax"], label="LAmax", color="red", alpha=0.6)
@@ -98,30 +100,28 @@ def build_report(sensor_id, df, start_date, end_date):
     plt.axhline(NIGHT_THRESHOLD, color="purple", linestyle="--", label="Night thr")
     plt.xlabel("Time")
     plt.ylabel("dB(A)")
-    plt.title(f"Noise Report – Sensor {sensor_id}\n"
-              f"{start_date.strftime('%a %Y-%m-%d')} → {end_date.strftime('%a %Y-%m-%d')}")
+    plt.title(f"Noise Report – Sensor {sensor_id}\n{start_date} → {end_date}")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(os.path.join(sensor_dir, "weekly_noise.png"))
     plt.close()
 
-    # ---- Chart 2: Heatmap with numbers ----
-    pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAeq"].mean().unstack(fill_value=float("nan"))
+    # ---- Chart 2: Heatmap with LAmin ----
+    pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAmin"].mean().unstack(fill_value=0)
+
     plt.figure(figsize=(12,6))
     ax = sns.heatmap(
         pivot.T,
-        cmap="RdYlGn_r",
-        annot=True,
-        fmt=".1f",
-        cbar_kws={'label': 'Avg LAeq (dB)'}
+        annot=True, fmt=".1f", cmap="coolwarm", cbar_kws={'label': 'Avg LAmin dB(A)'},
+        linewidths=.5
     )
-    ax.set_ylabel("Hour of Day")
-    ax.set_xlabel("Date")
-    ax.set_xticklabels([d.strftime("%a\n%m-%d") for d in pivot.index], rotation=45, ha="right")
-    ax.set_title("Hourly Average LAeq with Values")
+    ax.set_yticklabels(range(24))
+    ax.set_xticklabels([f"{d.strftime('%a %d')}" for d in pivot.index], rotation=45)
+    plt.ylabel("Hour of day")
+    plt.title("Average LAmin Heatmap (hour vs day)")
     plt.tight_layout()
-    plt.savefig(os.path.join(sensor_dir, "heatmap_avg_LAeq.png"))
+    plt.savefig(os.path.join(sensor_dir, "la_min_heatmap.png"))
     plt.close()
 
     # ---- PDF ----
