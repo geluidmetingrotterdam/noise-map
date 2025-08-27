@@ -60,7 +60,7 @@ def analyze(df):
     df["hour"] = df["timestamp"].dt.hour
     df["is_day"] = df["hour"].between(7, 22)
     df["threshold"] = df["is_day"].map({True: DAY_THRESHOLD, False: NIGHT_THRESHOLD})
-    df["exceeded"] = df["LAeq"] > df["threshold"]
+    df["exceeded"] = df["LAmin"] > df["threshold"]
 
     total_day_minutes = df[df["is_day"] & df["exceeded"]].shape[0] * 5
     total_night_minutes = df[~df["is_day"] & df["exceeded"]].shape[0] * 5
@@ -72,8 +72,8 @@ def analyze(df):
     max_duration = int(events.max()) if num_events else 0
 
     summary = pd.DataFrame([{
-        "LAeq Day Avg": round(df[df["is_day"]]["LAeq"].mean(), 1),
-        "LAeq Night Avg": round(df[~df["is_day"]]["LAeq"].mean(), 1),
+        "LAmin Day Avg": round(df[df["is_day"]]["LAmin"].mean(), 1),
+        "LAmin Night Avg": round(df[~df["is_day"]]["LAmin"].mean(), 1),
         "Minutes > Day Thr": total_day_minutes,
         "Minutes > Night Thr": total_night_minutes,
         "Noise Events": num_events,
@@ -83,15 +83,13 @@ def analyze(df):
 
     return summary
 
-
-
 def build_report(sensor_id, df, start_date, end_date):
     sensor_dir = os.path.join(REPORTS_DIR, str(sensor_id))
     os.makedirs(sensor_dir, exist_ok=True)
 
     summary = analyze(df)
 
-    # ---- Chart 1: Weekly Noise (unchanged) ----
+    # ---- Chart 1: Weekly Noise ----
     plt.figure(figsize=(12,6))
     plt.plot(df["timestamp"], df["LAeq"], label="LAeq", color="blue")
     plt.plot(df["timestamp"], df["LAmax"], label="LAmax", color="red", alpha=0.6)
@@ -127,7 +125,7 @@ def build_report(sensor_id, df, start_date, end_date):
     # ---- PDF ----
     pdf_file = os.path.join(sensor_dir, f"weekly_report_{sensor_id}.pdf")
     with PdfPages(pdf_file) as pdf:
-        for img in ["weekly_noise.png", "heatmap_avg_LAeq.png"]:
+        for img in ["weekly_noise.png", "la_min_heatmap.png"]:
             fig = plt.figure()
             plt.imshow(plt.imread(os.path.join(sensor_dir, img)))
             plt.axis("off")
@@ -146,8 +144,8 @@ def build_report(sensor_id, df, start_date, end_date):
       {summary.to_html(index=False)}
       <h2>Weekly Noise Graph</h2>
       <img src="weekly_noise.png"/>
-      <h2>Heatmap (Hourly Average LAeq)</h2>
-      <img src="heatmap_avg_LAeq.png"/>
+      <h2>Heatmap (Hourly Average LAmin)</h2>
+      <img src="la_min_heatmap.png"/>
     </body>
     </html>
     """
