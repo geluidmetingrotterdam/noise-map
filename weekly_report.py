@@ -119,7 +119,7 @@ def build_report(sensor_id, df, start_date, end_date):
 
     # ✅ Custom colormap with log-like normalization
     cmap = LinearSegmentedColormap.from_list(
-        "noise_levels", ["green", "yellow", "red", "darkred"]
+        "noise_levels", ["green", "yellow", "red", "darkred", "black"]
     )
     norm = PowerNorm(gamma=1.0, vmin=40, vmax=70)  # emphasize high values
 
