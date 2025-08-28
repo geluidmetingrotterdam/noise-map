@@ -121,7 +121,7 @@ def build_report(sensor_id, df, start_date, end_date):
     cmap = LinearSegmentedColormap.from_list(
         "noise_levels", ["green", "yellow", "red", "darkred"]
     )
-    norm = PowerNorm(gamma=0.5, vmin=30, vmax=80)  # emphasize high values
+    norm = PowerNorm(gamma=1.5, vmin=40, vmax=70)  # emphasize high values
 
     plt.figure(figsize=(12,6))
     ax = sns.heatmap(
