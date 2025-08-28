@@ -39,8 +39,8 @@ def analyze(df, metric):
 
     return {
         "Metric": metric,
-        "Daytime Average": round(day_avg, 1),
-        "Nighttime Average": round(night_avg, 1),
+        "Daytime Average (dB)": round(day_avg, 1),
+        "Nighttime Average (dB)": round(night_avg, 1),
         "Minutes Above Daytime Threshold": int(minutes_day_thr),
         "Minutes Above Nighttime Threshold": int(minutes_night_thr),
         "Number of Noise Events": int(n_events),
@@ -99,8 +99,6 @@ if __name__ == "__main__":
     # --- Summary Table ---
     summary = pd.DataFrame([
         analyze(df, "noise_LAmin"),
-        analyze(df, "noise_LAeq"),
-        analyze(df, "noise_LAmax"),
     ])
 
     print("\nSummary Table:\n", summary)
