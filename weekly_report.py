@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime, timedelta
 from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.dates as mdates
+import matplotlib.colors as mcolors
 
 # ===== SETTINGS =====
 SENSOR_IDS = ["89747"]    # add more IDs if needed
@@ -101,6 +103,12 @@ def build_report(sensor_id, df, start_date, end_date):
     plt.title(f"Noise Report – Sensor {sensor_id}\n{start_date} → {end_date}")
     plt.legend()
     plt.grid(True)
+
+    # ✅ format x-axis with day names
+    ax = plt.gca()
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%a %d'))
+    plt.xticks(rotation=45)
+
     plt.tight_layout()
     plt.savefig(os.path.join(sensor_dir, "weekly_noise.png"))
     plt.close()
@@ -108,10 +116,19 @@ def build_report(sensor_id, df, start_date, end_date):
     # ---- Chart 2: Heatmap with LAmin ----
     pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAmin"].mean().unstack(fill_value=0)
 
+    # ✅ custom colormap with fixed normalization
+    cmap = mcolors.LinearSegmentedColormap.from_list(
+        "noise_cmap", ["green", "yellow", "red", "darkred"]
+    )
+    bounds = [0, 40, 50, 60, 70, 120]  # range with >70 capped
+    norm = mcolors.BoundaryNorm(bounds, cmap.N, extend='max')
+
     plt.figure(figsize=(12,6))
     ax = sns.heatmap(
         pivot.T,
-        annot=True, fmt=".1f", cmap="coolwarm", cbar_kws={'label': 'Avg LAmin dB(A)'},
+        annot=True, fmt=".1f",
+        cmap=cmap, norm=norm,
+        cbar_kws={'label': 'Avg LAmin dB(A)'},
         linewidths=.5
     )
     ax.set_yticklabels(range(24))
