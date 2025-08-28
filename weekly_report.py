@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.dates as mdates
 import matplotlib.colors as mcolors
+from matplotlib.colors import LinearSegmentedColormap, PowerNorm
 
 # ===== SETTINGS =====
 SENSOR_IDS = ["89747"]    # add more IDs if needed
@@ -116,12 +117,11 @@ def build_report(sensor_id, df, start_date, end_date):
     # ---- Chart 2: Heatmap with LAmin ----
     pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAmin"].mean().unstack(fill_value=0)
 
-    # ✅ custom colormap with fixed normalization
-    cmap = mcolors.LinearSegmentedColormap.from_list(
-        "noise_cmap", ["green", "yellow", "red", "darkred"]
+    # ✅ Custom colormap with log-like normalization
+    cmap = LinearSegmentedColormap.from_list(
+        "noise_levels", ["green", "yellow", "red", "darkred"]
     )
-    bounds = [0, 40, 50, 60, 70, 120]  # range with >70 capped
-    norm = mcolors.BoundaryNorm(bounds, cmap.N, extend='max')
+    norm = PowerNorm(gamma=2.0, vmin=30, vmax=80)  # emphasize high values
 
     plt.figure(figsize=(12,6))
     ax = sns.heatmap(
