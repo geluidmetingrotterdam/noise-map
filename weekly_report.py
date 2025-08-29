@@ -8,15 +8,18 @@ import seaborn as sns
 from datetime import datetime, timedelta
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.dates as mdates
-import matplotlib.colors as mcolors
 from matplotlib.colors import LinearSegmentedColormap, PowerNorm
 
 # ===== SETTINGS =====
 SENSOR_IDS = ["89747"]    # add more IDs if needed
 REPORTS_DIR = "reports"
 ARCHIVE_URL = "https://archive.sensor.community"
-DAY_THRESHOLD = 65
-NIGHT_THRESHOLD = 50
+# thresholds (per metric)
+THRESHOLDS = {
+    "LAmin": {"day": 55, "night": 45},
+    "LAeq": {"day": 55, "night": 45},
+    "LAmax": {"day": 70, "night": 60},
+}
 # ====================
 
 os.makedirs(REPORTS_DIR, exist_ok=True)
@@ -59,56 +62,60 @@ def normalize_dataframe(df):
     df = df.dropna()
     return df
 
-def analyze(df):
-    df["hour"] = df["timestamp"].dt.hour
-    df["is_day"] = df["hour"].between(7, 22)
-    df["threshold"] = df["is_day"].map({True: DAY_THRESHOLD, False: NIGHT_THRESHOLD})
-    df["exceeded"] = df["LAmin"] > df["threshold"]
+def detect_events(metric_df, column, thr_day, thr_night):
+    """Detect noise events above threshold for given metric."""
+    metric_df = metric_df.copy()
+    metric_df["hour"] = metric_df["timestamp"].dt.hour
+    metric_df["is_day"] = metric_df["hour"].between(7, 22)
+    metric_df["threshold"] = metric_df["is_day"].map({True: thr_day, False: thr_night})
+    metric_df["exceeded"] = metric_df[column] > metric_df["threshold"]
 
-    total_day_minutes = df[df["is_day"] & df["exceeded"]].shape[0] * 5
-    total_night_minutes = df[~df["is_day"] & df["exceeded"]].shape[0] * 5
-
-    df["event"] = (df["exceeded"] != df["exceeded"].shift()).cumsum()
-    events = df[df["exceeded"]].groupby("event").size() * 5
+    # consecutive exceeded = event
+    metric_df["event"] = (metric_df["exceeded"] != metric_df["exceeded"].shift()).cumsum()
+    events = metric_df[metric_df["exceeded"]].groupby("event").size() * 5
     num_events = len(events)
     avg_duration = round(events.mean(), 1) if num_events else 0
     max_duration = int(events.max()) if num_events else 0
+    return num_events, avg_duration, max_duration, metric_df
 
-    summary = pd.DataFrame([
-    {
-        "Metric": "LAmin",
-        "Daytime Average": la_min_day_avg,
-        "Nighttime Average": la_min_night_avg,
-        "Minutes Above Daytime Threshold": la_min_minutes_day,
-        "Minutes Above Nighttime Threshold": la_min_minutes_night,
-        "Number of Noise Events": la_min_events,
-        "Average Event Duration (minutes)": la_min_avg_event_duration,
-        "Maximum Event Duration (minutes)": la_min_max_event_duration,
-    },
-    {
-        "Metric": "LAeq",
-        "Daytime Average": la_eq_day_avg,
-        "Nighttime Average": la_eq_night_avg,
-        "Minutes Above Daytime Threshold": la_eq_minutes_day,
-        "Minutes Above Nighttime Threshold": la_eq_minutes_night,
-        "Number of Noise Events": la_eq_events,
-        "Average Event Duration (minutes)": la_eq_avg_event_duration,
-        "Maximum Event Duration (minutes)": la_eq_max_event_duration,
-    },
-    {
-        "Metric": "LAmax",
-        "Daytime Average": la_max_day_avg,
-        "Nighttime Average": la_max_night_avg,
-        "Minutes Above Daytime Threshold": la_max_minutes_day,
-        "Minutes Above Nighttime Threshold": la_max_minutes_night,
-        "Number of Noise Events": la_max_events,
-        "Average Event Duration (minutes)": la_max_avg_event_duration,
-        "Maximum Event Duration (minutes)": la_max_max_event_duration,
-    }
-])
+def analyze(df):
+    """Compute summary for LAmin, LAeq, LAmax with clear headers."""
+    summary_rows = []
 
+    for metric in ["LAmin", "LAeq", "LAmax"]:
+        thr_day = THRESHOLDS[metric]["day"]
+        thr_night = THRESHOLDS[metric]["night"]
 
-    return summary
+        metric_df = df[["timestamp", metric]].dropna()
+        if metric_df.empty:
+            continue
+
+        metric_df["hour"] = metric_df["timestamp"].dt.hour
+        metric_df["is_day"] = metric_df["hour"].between(7, 22)
+
+        # averages
+        day_avg = metric_df.loc[metric_df["is_day"], metric].mean()
+        night_avg = metric_df.loc[~metric_df["is_day"], metric].mean()
+
+        # minutes above threshold
+        minutes_day = (metric_df.loc[metric_df["is_day"], metric] > thr_day).sum() * 5
+        minutes_night = (metric_df.loc[~metric_df["is_day"], metric] > thr_night).sum() * 5
+
+        # events
+        num_events, avg_duration, max_duration, _ = detect_events(metric_df, metric, thr_day, thr_night)
+
+        summary_rows.append({
+            "Metric": metric,
+            "Daytime Average": round(day_avg, 1) if pd.notna(day_avg) else None,
+            "Nighttime Average": round(night_avg, 1) if pd.notna(night_avg) else None,
+            "Minutes Above Daytime Threshold": int(minutes_day),
+            "Minutes Above Nighttime Threshold": int(minutes_night),
+            "Number of Noise Events": num_events,
+            "Average Event Duration (minutes)": avg_duration,
+            "Maximum Event Duration (minutes)": max_duration,
+        })
+
+    return pd.DataFrame(summary_rows)
 
 def build_report(sensor_id, df, start_date, end_date):
     sensor_dir = os.path.join(REPORTS_DIR, str(sensor_id))
@@ -121,15 +128,14 @@ def build_report(sensor_id, df, start_date, end_date):
     plt.plot(df["timestamp"], df["LAeq"], label="LAeq", color="blue")
     plt.plot(df["timestamp"], df["LAmax"], label="LAmax", color="red", alpha=0.6)
     plt.plot(df["timestamp"], df["LAmin"], label="LAmin", color="green", alpha=0.6)
-    plt.axhline(DAY_THRESHOLD, color="orange", linestyle="--", label="Day thr")
-    plt.axhline(NIGHT_THRESHOLD, color="purple", linestyle="--", label="Night thr")
+    plt.axhline(THRESHOLDS["LAmin"]["day"], color="orange", linestyle="--", label="Day thr (LAmin)")
+    plt.axhline(THRESHOLDS["LAmin"]["night"], color="purple", linestyle="--", label="Night thr (LAmin)")
     plt.xlabel("Time")
     plt.ylabel("dB(A)")
     plt.title(f"Noise Report – Sensor {sensor_id}\n{start_date} → {end_date}")
     plt.legend()
     plt.grid(True)
 
-    # ✅ format x-axis with day names
     ax = plt.gca()
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%a %d'))
     plt.xticks(rotation=45)
@@ -140,12 +146,8 @@ def build_report(sensor_id, df, start_date, end_date):
 
     # ---- Chart 2: Heatmap with LAmin ----
     pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAmin"].mean().unstack(fill_value=0)
-
-    # ✅ Custom colormap with log-like normalization
-    cmap = LinearSegmentedColormap.from_list(
-        "noise_levels", ["green", "yellow", "red", "darkred", "black"]
-    )
-    norm = PowerNorm(gamma=1.0, vmin=40, vmax=80)  # emphasize high values
+    cmap = LinearSegmentedColormap.from_list("noise_levels", ["green", "yellow", "red", "darkred", "black"])
+    norm = PowerNorm(gamma=1.5, vmin=40, vmax=80)  # steeper scaling
 
     plt.figure(figsize=(12,6))
     ax = sns.heatmap(
