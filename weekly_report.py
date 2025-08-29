@@ -79,43 +79,83 @@ def detect_events(metric_df, column, thr_day, thr_night):
     return num_events, avg_duration, max_duration, metric_df
 
 def analyze(df):
-    """Compute summary for LAmin, LAeq, LAmax with clear headers."""
-    summary_rows = []
+    results = []
 
-    for metric in ["LAmin", "LAeq", "LAmax"]:
-        thr_day = THRESHOLDS[metric]["day"]
-        thr_night = THRESHOLDS[metric]["night"]
+    # ---- LAmin (keep full old logic) ----
+    la_min_day_avg = df.loc[df["is_daytime"], "noise_LA_min"].mean()
+    la_min_night_avg = df.loc[~df["is_daytime"], "noise_LA_min"].mean()
 
-        metric_df = df[["timestamp", metric]].dropna()
-        if metric_df.empty:
-            continue
+    # thresholds (same as original script)
+    day_thr = 50
+    night_thr = 40
 
-        metric_df["hour"] = metric_df["timestamp"].dt.hour
-        metric_df["is_day"] = metric_df["hour"].between(7, 22)
+    # Minutes above thresholds
+    minutes_above_day = (df.loc[df["is_daytime"], "noise_LA_min"] > day_thr).sum()
+    minutes_above_night = (df.loc[~df["is_daytime"], "noise_LA_min"] > night_thr).sum()
 
-        # averages
-        day_avg = metric_df.loc[metric_df["is_day"], metric].mean()
-        night_avg = metric_df.loc[~metric_df["is_day"], metric].mean()
+    # Noise events (original logic)
+    above_thr = df["noise_LA_min"] > (day_thr if df["is_daytime"].any() else night_thr)
+    df["above_threshold"] = above_thr
 
-        # minutes above threshold
-        minutes_day = (metric_df.loc[metric_df["is_day"], metric] > thr_day).sum() * 5
-        minutes_night = (metric_df.loc[~metric_df["is_day"], metric] > thr_night).sum() * 5
+    events = []
+    current_event = []
+    for idx, row in df.iterrows():
+        if row["above_threshold"]:
+            current_event.append(idx)
+        else:
+            if current_event:
+                events.append(current_event)
+                current_event = []
+    if current_event:
+        events.append(current_event)
 
-        # events
-        num_events, avg_duration, max_duration, _ = detect_events(metric_df, metric, thr_day, thr_night)
+    num_events = len(events)
+    avg_event_duration = (sum(len(ev) for ev in events) / num_events) if num_events > 0 else 0
+    max_event_duration = max((len(ev) for ev in events), default=0)
 
-        summary_rows.append({
-            "Metric": metric,
-            "Daytime Average": round(day_avg, 1) if pd.notna(day_avg) else None,
-            "Nighttime Average": round(night_avg, 1) if pd.notna(night_avg) else None,
-            "Minutes Above Daytime Threshold": int(minutes_day),
-            "Minutes Above Nighttime Threshold": int(minutes_night),
-            "Number of Noise Events": num_events,
-            "Average Event Duration (minutes)": avg_duration,
-            "Maximum Event Duration (minutes)": max_duration,
-        })
+    results.append({
+        "Metric": "LAmin",
+        "Daytime Average": round(la_min_day_avg, 1) if pd.notna(la_min_day_avg) else None,
+        "Nighttime Average": round(la_min_night_avg, 1) if pd.notna(la_min_night_avg) else None,
+        "Minutes Above Daytime Threshold": minutes_above_day,
+        "Minutes Above Nighttime Threshold": minutes_above_night,
+        "Number of Noise Events": num_events,
+        "Average Event Duration (minutes)": round(avg_event_duration, 1),
+        "Maximum Event Duration (minutes)": max_event_duration,
+    })
 
-    return pd.DataFrame(summary_rows)
+    # ---- LAeq (averages only) ----
+    la_eq_day_avg = df.loc[df["is_daytime"], "noise_LAeq"].mean()
+    la_eq_night_avg = df.loc[~df["is_daytime"], "noise_LAeq"].mean()
+
+    results.append({
+        "Metric": "LAeq",
+        "Daytime Average": round(la_eq_day_avg, 1) if pd.notna(la_eq_day_avg) else None,
+        "Nighttime Average": round(la_eq_night_avg, 1) if pd.notna(la_eq_night_avg) else None,
+        "Minutes Above Daytime Threshold": "–",
+        "Minutes Above Nighttime Threshold": "–",
+        "Number of Noise Events": "–",
+        "Average Event Duration (minutes)": "–",
+        "Maximum Event Duration (minutes)": "–",
+    })
+
+    # ---- LAmax (averages only) ----
+    la_max_day_avg = df.loc[df["is_daytime"], "noise_LA_max"].mean()
+    la_max_night_avg = df.loc[~df["is_daytime"], "noise_LA_max"].mean()
+
+    results.append({
+        "Metric": "LAmax",
+        "Daytime Average": round(la_max_day_avg, 1) if pd.notna(la_max_day_avg) else None,
+        "Nighttime Average": round(la_max_night_avg, 1) if pd.notna(la_max_night_avg) else None,
+        "Minutes Above Daytime Threshold": "–",
+        "Minutes Above Nighttime Threshold": "–",
+        "Number of Noise Events": "–",
+        "Average Event Duration (minutes)": "–",
+        "Maximum Event Duration (minutes)": "–",
+    })
+
+    return pd.DataFrame(results)
+
 
 def build_report(sensor_id, df, start_date, end_date):
     sensor_dir = os.path.join(REPORTS_DIR, str(sensor_id))
