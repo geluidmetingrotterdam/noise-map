@@ -74,15 +74,39 @@ def analyze(df):
     avg_duration = round(events.mean(), 1) if num_events else 0
     max_duration = int(events.max()) if num_events else 0
 
-    summary = pd.DataFrame([{
-        "LAmin Day Avg": round(df[df["is_day"]]["LAmin"].mean(), 1),
-        "LAmin Night Avg": round(df[~df["is_day"]]["LAmin"].mean(), 1),
-        "Minutes > Day Thr": total_day_minutes,
-        "Minutes > Night Thr": total_night_minutes,
-        "Noise Events": num_events,
-        "Avg Event Duration (min)": avg_duration,
-        "Max Event Duration (min)": max_duration
-    }])
+    summary = pd.DataFrame([
+    {
+        "Metric": "LAmin",
+        "Daytime Average": la_min_day_avg,
+        "Nighttime Average": la_min_night_avg,
+        "Minutes Above Daytime Threshold": la_min_minutes_day,
+        "Minutes Above Nighttime Threshold": la_min_minutes_night,
+        "Number of Noise Events": la_min_events,
+        "Average Event Duration (minutes)": la_min_avg_event_duration,
+        "Maximum Event Duration (minutes)": la_min_max_event_duration,
+    },
+    {
+        "Metric": "LAeq",
+        "Daytime Average": la_eq_day_avg,
+        "Nighttime Average": la_eq_night_avg,
+        "Minutes Above Daytime Threshold": la_eq_minutes_day,
+        "Minutes Above Nighttime Threshold": la_eq_minutes_night,
+        "Number of Noise Events": la_eq_events,
+        "Average Event Duration (minutes)": la_eq_avg_event_duration,
+        "Maximum Event Duration (minutes)": la_eq_max_event_duration,
+    },
+    {
+        "Metric": "LAmax",
+        "Daytime Average": la_max_day_avg,
+        "Nighttime Average": la_max_night_avg,
+        "Minutes Above Daytime Threshold": la_max_minutes_day,
+        "Minutes Above Nighttime Threshold": la_max_minutes_night,
+        "Number of Noise Events": la_max_events,
+        "Average Event Duration (minutes)": la_max_avg_event_duration,
+        "Maximum Event Duration (minutes)": la_max_max_event_duration,
+    }
+])
+
 
     return summary
 
