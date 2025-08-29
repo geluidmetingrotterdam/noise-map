@@ -117,7 +117,7 @@ def build_report(sensor_id, df, start_date, end_date):
     # ---- Chart 2: Heatmap with LAmin ----
     pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAmin"].mean().unstack(fill_value=0)
     cmap = LinearSegmentedColormap.from_list(
-        "noise_levels", ["green", "yellow", "red", "darkred", "black"]
+        "noise_levels", ["gray", "green", "yellow", "red", "darkred", "black"]
     )
     norm = PowerNorm(gamma=1.0, vmin=40, vmax=80)
     plt.figure(figsize=(12, 6))
