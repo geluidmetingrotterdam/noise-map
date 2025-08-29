@@ -15,9 +15,10 @@ from matplotlib.colors import LinearSegmentedColormap, PowerNorm
 # SENSOR_IDS = ["89747"]  # add more IDs if needed
 
 SENSOR_IDS = [
-     89747, 94284, 94735, 94449, 94687, 94448, 94693, 94695, 94284, 94701,
+     89747, 94284, 94735, 94449, 94687, 94448, 94693, 94284, 94701,
     95492, 95490, 95484, 
 ]
+#94695,
 
 REPORTS_DIR = "reports"
 ARCHIVE_URL = "https://archive.sensor.community"
