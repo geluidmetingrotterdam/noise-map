@@ -118,31 +118,34 @@ def build_report(sensor_id, df, start_date, end_date):
     plt.savefig(os.path.join(sensor_dir, "weekly_noise.png"))
     plt.close()
 
-    # ---- Chart 2: Heatmap with LAmin (evening/night adjustment) ----
-    pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAmin"].mean().unstack(fill_value=0)
+    # ---- Chart 2: Heatmap with LAmin (color uses adjusted; labels show original) ----
+    # Build pivot: rows=dates, cols=hours (0..23)
+    pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAmin"].mean().unstack()
+    # Ensure all hours present (0..23), keep NaN where missing (so not colored/annotated)
+    hours = list(range(24))
+    pivot = pivot.reindex(columns=hours)
 
-    # Adjust pivot values depending on time of day
-    adjusted_pivot = pivot.copy()
-    for hour in range(24):
-        if hour not in adjusted_pivot.columns:
-            continue
-        if 7 <= hour < 19:        # Day (07:00–19:00)
-            continue
-        elif 19 <= hour < 23:     # Evening (19:00–23:00)
-            adjusted_pivot.loc[:, hour] += 5
-        else:                     # Night (23:00–07:00)
-            adjusted_pivot.loc[:, hour] += 10
+    # Build per-hour adjustment (hidden): day 0, evening +5, night +10
+    adj_map = pd.Series(0, index=hours, dtype=float)
+    adj_map.loc[0:6] = 10     # night 23:00–07:00 -> (0..6) here; 23 set below
+    adj_map.loc[7:18] = 0     # day 07:00–19:00 (7..18)
+    adj_map.loc[19:22] = 5    # evening 19:00–23:00 (19..22)
+    adj_map.loc[23] = 10      # night hour 23
 
+    # Color data = adjusted; labels = original (so users don't see the hidden offsets)
+    adjusted_pivot = pivot.add(adj_map, axis=1)
+
+    # Colormap and normalization
     cmap = LinearSegmentedColormap.from_list(
         "noise_levels", ["gray", "green", "yellow", "red", "darkred", "black"]
     )
-    norm = PowerNorm(gamma=2.6, vmin=0, vmax=80)
+    norm = PowerNorm(gamma=2.3, vmin=0, vmax=80)
 
     plt.figure(figsize=(12, 6))
     ax = sns.heatmap(
-        adjusted_pivot.T,
-        annot=True,
-        fmt=".1f",
+        adjusted_pivot.T,                     # colors from adjusted values
+        annot=pivot.T,                        # show original values
+        fmt=".0f",
         cmap=cmap,
         norm=norm,
         cbar_kws={'label': 'Avg LAmin dB(A)'},
@@ -151,7 +154,7 @@ def build_report(sensor_id, df, start_date, end_date):
     ax.set_yticklabels(range(24))
     ax.set_xticklabels([f"{d.strftime('%a %d')}" for d in pivot.index], rotation=45)
     plt.ylabel("Hour of day")
-    plt.title("Average LAmin Heatmap (hour vs day, adjusted)")
+    plt.title("Average LAmin Heatmap (hour vs day)")
     plt.tight_layout()
     plt.savefig(os.path.join(sensor_dir, "la_min_heatmap.png"))
     plt.close()
