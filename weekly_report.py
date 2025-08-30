@@ -14,8 +14,9 @@ from matplotlib.colors import LinearSegmentedColormap, PowerNorm
 # ===== SETTINGS =====
 SENSOR_IDS = [
     89747, 94284, 94735, 94449, 94687, 94448, 94693, 94284, 94701,
-    95492, 95490, 95484,
+    95492, 95490, 95484
 ]
+
 REPORTS_DIR = "reports"
 ARCHIVE_URL = "https://archive.sensor.community"
 DAY_THRESHOLD = 65
@@ -24,11 +25,13 @@ NIGHT_THRESHOLD = 50
 
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
+
 def get_last_full_week():
     today = datetime.utcnow().date()
     last_sunday = today - timedelta(days=today.weekday() + 1)
     last_monday = last_sunday - timedelta(days=6)
     return last_monday, last_sunday
+
 
 def fetch_csv(date, sensor_id):
     date_str = date.strftime("%Y-%m-%d")
@@ -43,6 +46,7 @@ def fetch_csv(date, sensor_id):
     except Exception as e:
         print(f"⚠️ Error fetching {url}: {e}")
         return None
+
 
 def normalize_dataframe(df):
     rename_map = {
@@ -59,6 +63,7 @@ def normalize_dataframe(df):
     df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
     df = df.dropna()
     return df
+
 
 def analyze(df):
     df["hour"] = df["timestamp"].dt.hour
@@ -87,6 +92,7 @@ def analyze(df):
     }])
     return summary
 
+
 def build_report(sensor_id, df, start_date, end_date):
     sensor_dir = os.path.join(REPORTS_DIR, str(sensor_id))
     os.makedirs(sensor_dir, exist_ok=True)
@@ -112,25 +118,25 @@ def build_report(sensor_id, df, start_date, end_date):
     plt.savefig(os.path.join(sensor_dir, "weekly_noise.png"))
     plt.close()
 
-    # ---- Chart 2: Heatmap with LAmin (adjusted for evening/night) ----
+    # ---- Chart 2: Heatmap with LAmin (evening/night adjustment) ----
     pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAmin"].mean().unstack(fill_value=0)
+
+    # Adjust pivot values depending on time of day
     adjusted_pivot = pivot.copy()
-
-    # Ensure column type is int for correct comparisons
-    adjusted_pivot.columns = adjusted_pivot.columns.astype(int)
-
-    for hour in adjusted_pivot.columns:
-        if 7 <= hour < 19:        # Day
+    for hour in range(24):
+        if hour not in adjusted_pivot.columns:
             continue
-        elif 19 <= hour < 23:     # Evening
-            adjusted_pivot[hour] += 5
-        else:                     # Night
-            adjusted_pivot[hour] += 10
+        if 7 <= hour < 19:        # Day (07:00–19:00)
+            continue
+        elif 19 <= hour < 23:     # Evening (19:00–23:00)
+            adjusted_pivot.loc[:, hour] += 5
+        else:                     # Night (23:00–07:00)
+            adjusted_pivot.loc[:, hour] += 10
 
     cmap = LinearSegmentedColormap.from_list(
         "noise_levels", ["gray", "green", "yellow", "red", "darkred", "black"]
     )
-    norm = PowerNorm(gamma=1.9, vmin=0, vmax=80)
+    norm = PowerNorm(gamma=2.3, vmin=0, vmax=80)
 
     plt.figure(figsize=(12, 6))
     ax = sns.heatmap(
@@ -143,4 +149,70 @@ def build_report(sensor_id, df, start_date, end_date):
         linewidths=.5
     )
     ax.set_yticklabels(range(24))
-    ax.set_xticklabels([f"{d.strfti]()_
+    ax.set_xticklabels([f"{d.strftime('%a %d')}" for d in pivot.index], rotation=45)
+    plt.ylabel("Hour of day")
+    plt.title("Average LAmin Heatmap (hour vs day, adjusted)")
+    plt.tight_layout()
+    plt.savefig(os.path.join(sensor_dir, "la_min_heatmap.png"))
+    plt.close()
+
+    # ---- PDF ----
+    pdf_file = os.path.join(sensor_dir, f"weekly_report_{sensor_id}.pdf")
+    with PdfPages(pdf_file) as pdf:
+        for img in ["weekly_noise.png", "la_min_heatmap.png"]:
+            fig = plt.figure()
+            plt.imshow(plt.imread(os.path.join(sensor_dir, img)))
+            plt.axis("off")
+            pdf.savefig(fig)
+            plt.close(fig)
+    print(f"✅ PDF saved: {pdf_file}")
+
+    # ---- HTML ----
+    html = f"""
+    <html>
+    <head><meta charset="utf-8"><title>Weekly Noise Report {sensor_id}</title></head>
+    <body>
+        <h1>Weekly Noise Report – Sensor {sensor_id}</h1>
+        <p>Generated on {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>
+        <h2>Summary</h2>
+        {summary.to_html(index=False)}
+        <h2>Weekly Noise Graph</h2>
+        <img src="weekly_noise.png"/>
+        <h2>Heatmap (Hourly Average LAmin)</h2>
+        <img src="la_min_heatmap.png"/>
+    </body>
+    </html>
+    """
+    with open(os.path.join(sensor_dir, "weekly_report.html"), "w", encoding="utf-8") as f:
+        f.write(html)
+
+
+def build_index(sensor_ids):
+    index_path = os.path.join(REPORTS_DIR, "index.html")
+    links = [f'<li><a href="{sid}/weekly_report.html">Sensor {sid}</a></li>' for sid in sensor_ids]
+    index_html = f"<html><body><h1>Weekly Noise Reports</h1><ul>{''.join(links)}</ul></body></html>"
+    with open(index_path, "w", encoding="utf-8") as f:
+        f.write(index_html)
+
+
+if __name__ == "__main__":
+    start_date, end_date = get_last_full_week()
+    for sensor_id in SENSOR_IDS:
+        print(f"📅 Generating report for sensor {sensor_id}: {start_date} → {end_date}")
+        all_data = []
+        current = start_date
+        while current <= end_date:
+            df = fetch_csv(current, sensor_id)
+            if df is not None:
+                df = normalize_dataframe(df)
+                if df is not None:
+                    all_data.append(df)
+            current += timedelta(days=1)
+        if not all_data:
+            print(f"⚠️ No valid data for sensor {sensor_id}")
+            continue
+        full_df = pd.concat(all_data).sort_values("timestamp")
+        build_report(sensor_id, full_df, start_date, end_date)
+
+    build_index(SENSOR_IDS)
+    print(f"✅ Index created at {os.path.join(REPORTS_DIR,'index.html')}")
