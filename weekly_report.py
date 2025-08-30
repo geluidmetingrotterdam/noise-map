@@ -12,13 +12,10 @@ import matplotlib.dates as mdates
 from matplotlib.colors import LinearSegmentedColormap, PowerNorm
 
 # ===== SETTINGS =====
-# SENSOR_IDS = ["89747"]  # add more IDs if needed
-
 SENSOR_IDS = [
-     89747, 94284, 94735, 94449, 94687, 94448, 94693, 94284, 94701,
-    95492, 95490, 95484, 
+    89747, 94284, 94735, 94449, 94687, 94448, 94693, 94284, 94701,
+    95492, 95490, 95484
 ]
-#94695,
 
 REPORTS_DIR = "reports"
 ARCHIVE_URL = "https://archive.sensor.community"
@@ -121,43 +118,41 @@ def build_report(sensor_id, df, start_date, end_date):
     plt.savefig(os.path.join(sensor_dir, "weekly_noise.png"))
     plt.close()
 
-# ---- Chart 2: Heatmap with LAmin (with evening/night adjustment) ----
-pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAmin"].mean().unstack(fill_value=0)
+    # ---- Chart 2: Heatmap with LAmin (evening/night adjustment) ----
+    pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAmin"].mean().unstack(fill_value=0)
 
-# ---- Adjust pivot values depending on time of day ----
-adjusted_pivot = pivot.copy()
-for hour in adjusted_pivot.columns:
-    if 7 <= hour < 19:        # Day (07:00–19:00) → unchanged
-        continue
-    elif 19 <= hour < 23:     # Evening (19:00–23:00) → +5
-        adjusted_pivot.loc[:, hour] += 5
-    else:                     # Night (23:00–07:00) → +10
-        adjusted_pivot.loc[:, hour] += 10
+    # Adjust pivot values depending on time of day
+    adjusted_pivot = pivot.copy()
+    for hour in adjusted_pivot.columns:
+        if 7 <= hour < 19:        # Day (07:00–19:00)
+            continue
+        elif 19 <= hour < 23:     # Evening (19:00–23:00)
+            adjusted_pivot.loc[:, hour] += 5
+        else:                     # Night (23:00–07:00)
+            adjusted_pivot.loc[:, hour] += 10
 
-# ---- Colormap + normalization ----
-cmap = LinearSegmentedColormap.from_list(
-    "noise_levels", ["gray", "green", "yellow", "red", "darkred", "black"]
-)
-norm = PowerNorm(gamma=1.9, vmin=0, vmax=80)
+    cmap = LinearSegmentedColormap.from_list(
+        "noise_levels", ["gray", "green", "yellow", "red", "darkred", "black"]
+    )
+    norm = PowerNorm(gamma=1.9, vmin=0, vmax=80)
 
-plt.figure(figsize=(12, 6))
-ax = sns.heatmap(
-    adjusted_pivot.T,
-    annot=True,
-    fmt=".1f",
-    cmap=cmap,
-    norm=norm,
-    cbar_kws={'label': 'Avg LAmin dB(A)'},
-    linewidths=.5
-)
-ax.set_yticklabels(range(24))
-ax.set_xticklabels([f"{d.strftime('%a %d')}" for d in pivot.index], rotation=45)
-plt.ylabel("Hour of day")
-plt.title("Average LAmin Heatmap (hour vs day, adjusted)")
-plt.tight_layout()
-plt.savefig(os.path.join(sensor_dir, "la_min_heatmap.png"))
-plt.close()
-
+    plt.figure(figsize=(12, 6))
+    ax = sns.heatmap(
+        adjusted_pivot.T,
+        annot=True,
+        fmt=".1f",
+        cmap=cmap,
+        norm=norm,
+        cbar_kws={'label': 'Avg LAmin dB(A)'},
+        linewidths=.5
+    )
+    ax.set_yticklabels(range(24))
+    ax.set_xticklabels([f"{d.strftime('%a %d')}" for d in pivot.index], rotation=45)
+    plt.ylabel("Hour of day")
+    plt.title("Average LAmin Heatmap (hour vs day, adjusted)")
+    plt.tight_layout()
+    plt.savefig(os.path.join(sensor_dir, "la_min_heatmap.png"))
+    plt.close()
 
     # ---- PDF ----
     pdf_file = os.path.join(sensor_dir, f"weekly_report_{sensor_id}.pdf")
