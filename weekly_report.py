@@ -126,7 +126,7 @@ def build_report(sensor_id, df, start_date, end_date):
 
     # Adjust values for evening/night before plotting
     adjusted_pivot = pivot.copy()
-    for hour in adjusted_pivot.index:
+    for hour in adjusted_pivot.columns:
         if 7 <= hour < 19:        # Day (07:00–19:00) → unchanged
             adjusted_pivot.loc[hour] = adjusted_pivot.loc[hour]
         elif 19 <= hour < 23:     # Evening (19:00–23:00) → +5
