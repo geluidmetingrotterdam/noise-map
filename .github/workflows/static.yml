@@ -1,12 +1,8 @@
-# Simple workflow for deploying static content to GitHub Pages
 name: Deploy static content to Pages
 
 on:
-  # Runs on pushes targeting the default branch
   push:
     branches: ["main"]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 permissions:
@@ -31,10 +27,12 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      # ✅ Publish the whole repo so index.html (map) is at root,
+      #    and reports/ is available at /noise-map/reports/
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'reports'   # 👈 Only publish reports/
+          path: '.'   # <-- changed from 'reports' to '.'
 
       - name: Deploy to GitHub Pages
         id: deployment
