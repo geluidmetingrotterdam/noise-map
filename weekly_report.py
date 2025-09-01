@@ -67,12 +67,15 @@ def normalize_dataframe(df):
 
 def analyze(df):
     df["hour"] = df["timestamp"].dt.hour
-    df["is_day"] = df["hour"].between(7, 22)
+    # Define day/night according to 07:00–19:00 / 19:00–23:00 / 23:00–07:00
+    df["is_day"] = df["hour"].between(7, 22)  # 07–22 counts as day/evening
+    df["is_night"] = ~df["is_day"]
+
     df["threshold"] = df["is_day"].map({True: DAY_THRESHOLD, False: NIGHT_THRESHOLD})
     df["exceeded"] = df["LAmin"] > df["threshold"]
 
     total_day_minutes = df[df["is_day"] & df["exceeded"]].shape[0] * 5
-    total_night_minutes = df[~df["is_day"] & df["exceeded"]].shape[0] * 5
+    total_night_minutes = df[df["is_night"] & df["exceeded"]].shape[0] * 5
 
     df["event"] = (df["exceeded"] != df["exceeded"].shift()).cumsum()
     events = df[df["exceeded"]].groupby("event").size() * 5
@@ -83,7 +86,7 @@ def analyze(df):
 
     summary = pd.DataFrame([{
         "LAmin Day Avg": round(df[df["is_day"]]["LAmin"].mean(), 1),
-        "LAmin Night Avg": round(df[~df["is_day"]]["LAmin"].mean(), 1),
+        "LAmin Night Avg": round(df[df["is_night"]]["LAmin"].mean(), 1),
         "Minutes > Day Thr": total_day_minutes,
         "Minutes > Night Thr": total_night_minutes,
         "Noise Events": num_events,
@@ -118,24 +121,24 @@ def build_report(sensor_id, df, start_date, end_date):
     plt.savefig(os.path.join(sensor_dir, "weekly_noise.png"))
     plt.close()
 
-    # ---- Chart 2: Heatmap with LAmin (color uses adjusted; labels show original) ----
-    # Build pivot: rows=dates, cols=hours (0..23)
+    # ---- Chart 2: Heatmap with LAmin (day 07:00 → 07:00 next) ----
     pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAmin"].mean().unstack()
-    # Ensure all hours present (0..23), keep NaN where missing (so not colored/annotated)
     hours = list(range(24))
     pivot = pivot.reindex(columns=hours)
 
-    # Build per-hour adjustment (hidden): day 0, evening +5, night +10
-    adj_map = pd.Series(0, index=hours, dtype=float)
-    adj_map.loc[0:6] = 10     # night 23:00–07:00 -> (0..6) here; 23 set below
-    adj_map.loc[7:18] = 0     # day 07:00–19:00 (7..18)
-    adj_map.loc[19:22] = 5    # evening 19:00–23:00 (19..22)
-    adj_map.loc[23] = 10      # night hour 23
+    # Reorder hours so rows start at 07:00 (07..23 + 00..06)
+    hour_order = list(range(7, 24)) + list(range(0, 7))
+    pivot = pivot[hour_order]
 
-    # Color data = adjusted; labels = original (so users don't see the hidden offsets)
+    # Build hidden adjustment map
+    adj_map = pd.Series(0, index=hour_order, dtype=float)
+    adj_map.loc[7:18] = 0      # 07–18
+    adj_map.loc[19:22] = 5     # 19–22
+    adj_map.loc[list(range(23, 24)) + list(range(0, 7))] = 10  # 23–06
+
+    # Apply adjustments (colors use adjusted values, labels show original values)
     adjusted_pivot = pivot.add(adj_map, axis=1)
 
-    # Colormap and normalization
     cmap = LinearSegmentedColormap.from_list(
         "noise_levels", ["gray", "green", "yellow", "red", "darkred", "black"]
     )
@@ -143,18 +146,18 @@ def build_report(sensor_id, df, start_date, end_date):
 
     plt.figure(figsize=(12, 6))
     ax = sns.heatmap(
-        adjusted_pivot.T,                     # colors from adjusted values
-        annot=pivot.T,                        # show original values
+        adjusted_pivot.T,
+        annot=pivot.T,
         fmt=".0f",
         cmap=cmap,
         norm=norm,
         cbar_kws={'label': 'Avg LAmin dB(A)'},
         linewidths=.5
     )
-    ax.set_yticklabels(range(24))
+    ax.set_yticklabels(hour_order)  # show reordered hours
     ax.set_xticklabels([f"{d.strftime('%a %d')}" for d in pivot.index], rotation=45)
-    plt.ylabel("Hour of day")
-    plt.title("Average LAmin Heatmap (hour vs day)")
+    plt.ylabel("Hour of day (07 → 07)")
+    plt.title("Average LAmin Heatmap (hour vs day, shifted 07:00 start)")
     plt.tight_layout()
     plt.savefig(os.path.join(sensor_dir, "la_min_heatmap.png"))
     plt.close()
