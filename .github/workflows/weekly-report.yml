@@ -4,7 +4,7 @@ name: Weekly Report
 on:
   workflow_dispatch:   # run manually from Actions tab
   schedule:
-    - cron: "0 6 * * MON"  # every Monday 06:00 UTC (08:00 NL)
+    - cron: "0 8 * * MON"  # every Monday 08:00 UTC (08:00 NL)
 
 jobs:
   build-report:
