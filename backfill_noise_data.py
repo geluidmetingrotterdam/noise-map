@@ -1,6 +1,5 @@
 import os
 import requests
-import gzip
 import csv
 import io
 import datetime
@@ -21,19 +20,19 @@ INFLUX_ORG = os.getenv("INFLUX_ORG")
 INFLUX_BUCKET = os.getenv("INFLUX_BUCKET")
 
 def fetch_and_push(sensor_id, day):
-    url = f"https://archive.sensor.community/{day}_laerm_sensor_{sensor_id}.csv.gz"
+    # ✅ Fixed URL format
+    url = f"https://archive.sensor.community/{day}/{day}_laerm_sensor_{sensor_id}.csv"
     print(f"Fetching {url} ...", flush=True)
 
     try:
         response = requests.get(url, timeout=30)
-        if response.status_code != 200:
+        if response.status_code != 200 or not response.text.strip():
             print(f"❌ Failed to fetch {url} (status {response.status_code})", flush=True)
             return False
 
-        compressed_file = io.BytesIO(response.content)
-        with gzip.open(compressed_file, mode="rt") as f:
-            reader = csv.DictReader(f, delimiter=";")
-            rows = list(reader)
+        # Parse CSV from text
+        reader = csv.DictReader(io.StringIO(response.text), delimiter=";")
+        rows = list(reader)
 
         if not rows:
             print(f"⚠️ No data in {url}", flush=True)
