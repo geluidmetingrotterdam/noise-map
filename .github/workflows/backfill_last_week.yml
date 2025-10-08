@@ -28,4 +28,4 @@ jobs:
         run: pip install requests influxdb-client
 
       - name: Run backfill script
-        run: python scripts/backfill_last_week.py
+        run: python backfill_last_week.py
