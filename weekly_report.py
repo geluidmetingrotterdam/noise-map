@@ -122,7 +122,7 @@ def build_report(sensor_id, df, start_date, end_date):
     plt.close()
 
     # ---- Chart 2: Heatmap with LAmin (day 07:00 → 07:00 next) ----
-    pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAmin"].mean().unstack()
+    pivot = df.groupby([df["timestamp"].dt.date, df["timestamp"].dt.hour])["LAmax"].mean().unstack()
     hours = list(range(24))
     pivot = pivot.reindex(columns=hours)
 
@@ -157,15 +157,15 @@ def build_report(sensor_id, df, start_date, end_date):
     ax.set_yticklabels(hour_order)  # show reordered hours
     ax.set_xticklabels([f"{d.strftime('%a %d')}" for d in pivot.index], rotation=45)
     plt.ylabel("Hour of day (07 → 07)")
-    plt.title("Average LAmin Heatmap (hour vs day, shifted 07:00 start)")
+    plt.title("Average LAmax Heatmap (hour vs day, shifted 07:00 start)")
     plt.tight_layout()
-    plt.savefig(os.path.join(sensor_dir, "la_min_heatmap.png"))
+    plt.savefig(os.path.join(sensor_dir, "la_max_heatmap.png"))
     plt.close()
 
     # ---- PDF ----
     pdf_file = os.path.join(sensor_dir, f"weekly_report_{sensor_id}.pdf")
     with PdfPages(pdf_file) as pdf:
-        for img in ["weekly_noise.png", "la_min_heatmap.png"]:
+        for img in ["weekly_noise.png", "la_max_heatmap.png"]:
             fig = plt.figure()
             plt.imshow(plt.imread(os.path.join(sensor_dir, img)))
             plt.axis("off")
@@ -184,8 +184,8 @@ def build_report(sensor_id, df, start_date, end_date):
         {summary.to_html(index=False)}
         <h2>Weekly Noise Graph</h2>
         <img src="weekly_noise.png"/>
-        <h2>Heatmap (Hourly Average LAmin)</h2>
-        <img src="la_min_heatmap.png"/>
+        <h2>Heatmap (Hourly Average LAmax)</h2>
+        <img src="la_max_heatmap.png"/>
     </body>
     </html>
     """
