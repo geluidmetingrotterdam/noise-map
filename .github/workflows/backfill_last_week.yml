@@ -1,0 +1,31 @@
+name: Backfill last full week (Noise data)
+
+on:
+  workflow_dispatch:  # allows you to trigger manually from the GitHub UI
+  schedule:
+    - cron: "5 5 * * 1"  # every Monday at 05:05 UTC
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+
+    env:
+      INFLUX_URL: ${{ secrets.INFLUX_URL }}
+      INFLUX_TOKEN: ${{ secrets.INFLUX_TOKEN }}
+      INFLUX_ORG: ${{ secrets.INFLUX_ORG }}
+      INFLUX_BUCKET: ${{ secrets.INFLUX_BUCKET }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests influxdb-client
+
+      - name: Run backfill script
+        run: python scripts/backfill_last_week.py
