@@ -34,12 +34,15 @@ def get_last_full_week():
 def fetch_sensor_data(sensor_id, start_date, end_date):
     client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     query_api = client.query_api()
-    
+
+    start_iso = start_date.strftime("%Y-%m-%dT00:00:00Z")
+    end_iso = (end_date + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00Z")
+
     query = f'''
 from(bucket: "{INFLUX_BUCKET}")
-  |> range(start: {start_date}T00:00:00Z, stop: {end_date + timedelta(days=1)}T00:00:00Z)
+  |> range(start: {start_iso}, stop: {end_iso})
   |> filter(fn: (r) => r._measurement == "noise" and r._field == "{FIELD}")
-  |> filter(fn: (r) => r.sensor_id == "{sensor_id}")
+  |> filter(fn: (r) => r.sensor_id == {sensor_id})
 '''
     tables = query_api.query(query)
     rows = []
@@ -47,7 +50,6 @@ from(bucket: "{INFLUX_BUCKET}")
         for record in table.records:
             rows.append({
                 "timestamp": record.get_time(),
-                "sensor_id": record.values.get("sensor_id"),
                 FIELD: record.get_value()
             })
     df = pd.DataFrame(rows)
@@ -58,8 +60,11 @@ from(bucket: "{INFLUX_BUCKET}")
     return df
 
 def build_heatmap(df, sensor_id, start_date, end_date):
+    # Hour and date columns
     df["hour"] = df["timestamp"].dt.hour
     df["date"] = df["timestamp"].dt.date
+
+    # Pivot: rows = date, columns = hour
     pivot = df.groupby([df["date"], df["hour"]])[FIELD].mean().unstack()
 
     # Reorder hours 07..23 + 00..06
@@ -71,17 +76,19 @@ def build_heatmap(df, sensor_id, start_date, end_date):
 
     # Day/evening/night adjustment
     adj_map = pd.Series(0, index=hour_order, dtype=float)
-    adj_map.loc[7:18] = 0
-    adj_map.loc[19:22] = 5
-    adj_map.loc[list(range(23, 24)) + list(range(0, 7))] = 10
+    adj_map.loc[7:18] = 0      # 07-19 daytime
+    adj_map.loc[19:22] = 5     # 19-23 evening
+    adj_map.loc[list(range(23, 24)) + list(range(0, 7))] = 10  # 23-07 night
+
     adjusted_pivot = pivot.add(adj_map, axis=1)
 
-    # Color map
+    # Color map and normalization
     cmap = LinearSegmentedColormap.from_list(
         "noise_levels", ["gray", "green", "yellow", "red", "darkred", "black"]
     )
     norm = PowerNorm(gamma=2.5, vmin=0, vmax=80)
 
+    # Plot heatmap
     plt.figure(figsize=(12, 6))
     ax = sns.heatmap(
         adjusted_pivot.T,
@@ -99,15 +106,17 @@ def build_heatmap(df, sensor_id, start_date, end_date):
     plt.title(f"Hourly Average Max Noise Heatmap ({FIELD})\nSensor {sensor_id} {start_date} → {end_date}")
     plt.tight_layout()
 
-    out_file = os.path.join(REPORTS_DIR, f"{sensor_id}_hourly_avg_max_noise_heatmap.png")
-    plt.savefig(out_file, dpi=150)
+    # Save PNG
+    png_file = os.path.join(REPORTS_DIR, f"{sensor_id}_hourly_avg_max_noise_heatmap.png")
+    plt.savefig(png_file, dpi=150)
     plt.close()
-    print(f"✅ PNG saved for sensor {sensor_id}: {out_file}")
+    print(f"✅ PNG saved for sensor {sensor_id}: {png_file}")
 
+    # Save PDF
     pdf_file = os.path.join(REPORTS_DIR, f"{sensor_id}_hourly_avg_max_noise_heatmap.pdf")
     with PdfPages(pdf_file) as pdf:
         fig = plt.figure()
-        plt.imshow(plt.imread(out_file))
+        plt.imshow(plt.imread(png_file))
         plt.axis("off")
         pdf.savefig(fig)
         plt.close(fig)
