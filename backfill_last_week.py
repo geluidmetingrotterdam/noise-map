@@ -6,7 +6,7 @@ import datetime
 import time
 from influxdb_client import InfluxDBClient, Point, WriteOptions
 
-# ✅ Cleaned sensor list (duplicates removed, comma separated)
+# ✅ Sensor list (duplicates removed)
 SENSOR_IDS = [
     93868, 94284, 94447, 94448, 94449, 94686, 94687, 94688, 94689,
     94692, 94693, 94695, 94696, 94701, 94735, 95432, 95482, 95483,
@@ -14,10 +14,12 @@ SENSOR_IDS = [
     95493, 95494, 95495, 89747
 ]
 
+# ✅ InfluxDB credentials (from environment variables)
 INFLUX_URL = os.getenv("INFLUX_URL")
 INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
 INFLUX_ORG = os.getenv("INFLUX_ORG")
 INFLUX_BUCKET = os.getenv("INFLUX_BUCKET")
+
 
 def fetch_and_push(sensor_id, day):
     url = f"https://archive.sensor.community/{day}/{day}_laerm_sensor_{sensor_id}.csv"
@@ -35,33 +37,37 @@ def fetch_and_push(sensor_id, day):
             print(f"⚠️ No data in {url}", flush=True)
             return False
 
-        with InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG) as client:
-            write_api = client.write_api(write_options=WriteOptions(batch_size=1000, flush_interval=10000))
-            points = []
-            for row in rows:
-                try:
-                    timestamp = datetime.datetime.fromisoformat(row["timestamp"])
-                    fields = {}
-                    for key in ["LAeq", "LAmin", "LAmax"]:
-                        if row.get(key):
-                            fields[key] = float(row[key])
-                    if fields:
-                        point = Point("noise") \
-                            .tag("sensor_id", str(sensor_id)) \
-                            .time(timestamp) \
-                            .field("LAeq", fields.get("LAeq", 0)) \
-                            .field("LAmin", fields.get("LAmin", 0)) \
-                            .field("LAmax", fields.get("LAmax", 0))
-                        points.append(point)
-                except Exception as e:
-                    print(f"⚠️ Skipping row due to error: {e}", flush=True)
-            if points:
+        points = []
+        for row in rows:
+            try:
+                timestamp = datetime.datetime.fromisoformat(row["timestamp"])
+                fields = {}
+                # ✅ Correct CSV headers mapping to Influx fields
+                for key, field_name in [("noise_LAeq", "LAeq"), ("noise_LA_min", "LAmin"), ("noise_LA_max", "LAmax")]:
+                    if row.get(key):
+                        fields[field_name] = float(row[key])
+                if fields:
+                    point = Point("noise") \
+                        .tag("sensor_id", str(sensor_id)) \
+                        .time(timestamp) \
+                        .field("LAeq", fields.get("LAeq", 0)) \
+                        .field("LAmin", fields.get("LAmin", 0)) \
+                        .field("LAmax", fields.get("LAmax", 0))
+                    points.append(point)
+            except Exception as e:
+                print(f"⚠️ Skipping row due to error: {e}", flush=True)
+
+        if points:
+            with InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG) as client:
+                write_api = client.write_api(write_options=WriteOptions(batch_size=1000, flush_interval=10000))
                 write_api.write(bucket=INFLUX_BUCKET, record=points)
+
         print(f"✅ Wrote {len(points)} points for sensor {sensor_id} on {day}", flush=True)
         return True
     except Exception as e:
         print(f"❌ Error processing {url}: {e}", flush=True)
         return False
+
 
 def backfill_day(day: str):
     print(f"🕓 Processing {day}", flush=True)
@@ -73,11 +79,11 @@ def backfill_day(day: str):
     print(f"🎉 Finished {day}: {successful_fetches} sensors processed", flush=True)
     return successful_fetches > 0
 
+
 if __name__ == "__main__":
     today = datetime.date.today()
 
-    # ✅ Determine last full week (Monday → Sunday)
-    # Example: if today is Tue 8 Oct, this returns Mon 29 Sep – Sun 5 Oct
+    # ✅ Last full week (Monday → Sunday)
     last_sunday = today - datetime.timedelta(days=today.weekday() + 1)
     last_monday = last_sunday - datetime.timedelta(days=6)
 
