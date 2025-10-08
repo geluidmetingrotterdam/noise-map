@@ -29,8 +29,8 @@ jobs:
           INFLUX_TOKEN: ${{ secrets.INFLUX_TOKEN }}
           INFLUX_ORG: ${{ secrets.INFLUX_ORG }}
         run: |
-          python hourly_avg_max_noise_heatmap.py
-
+          python weekly_report.py
+          
       - name: Upload reports (HTML + PNG + PDF)
         uses: actions/upload-artifact@v4
         with:
