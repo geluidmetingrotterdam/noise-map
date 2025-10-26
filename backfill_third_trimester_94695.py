@@ -34,20 +34,25 @@ def fetch_and_push(sensor_id, day: datetime.date):
         reader = csv.DictReader(io.StringIO(response.text), delimiter=";")
         rows = list(reader)
         if not rows:
-            print(f"⚠️ No data in CSV for {day_str}", flush=True)
+            print(f"⚠️ CSV empty for {day_str}", flush=True)
             return 0
 
         points_count = 0
         with InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG) as client:
             write_api = client.write_api(write_options=WriteOptions(batch_size=1000, flush_interval=10000))
             points = []
+
             for row in rows:
                 try:
                     timestamp = datetime.datetime.fromisoformat(row["timestamp"])
                     fields = {}
-                    for key in ["LAeq", "LAmin", "LAmax"]:
-                        if row.get(key):
-                            fields[key] = float(row[key])
+                    for key_csv, key_field in [
+                        ("noise_LAeq","LAeq"),
+                        ("noise_LA_min","LAmin"),
+                        ("noise_LA_max","LAmax")
+                    ]:
+                        if row.get(key_csv):
+                            fields[key_field] = float(row[key_csv])
                     if fields:
                         point = Point("noise") \
                             .tag("sensor_id", str(sensor_id)) \
@@ -58,11 +63,14 @@ def fetch_and_push(sensor_id, day: datetime.date):
                         points.append(point)
                 except Exception as e:
                     print(f"⚠️ Skipping row due to error: {e}", flush=True)
+
             if points:
                 write_api.write(bucket=INFLUX_BUCKET, record=points)
                 points_count = len(points)
+
         print(f"✅ Wrote {points_count} points for {sensor_id} on {day_str}", flush=True)
         return points_count
+
     except Exception as e:
         print(f"❌ Error processing {url}: {e}", flush=True)
         return 0
@@ -75,7 +83,7 @@ def backfill_range(start_date: datetime.date, end_date: datetime.date):
         count = fetch_and_push(SENSOR_ID, current_day)
         month_key = current_day.strftime("%Y-%m")
         monthly_counts[month_key] += count
-        time.sleep(1)  # avoid overwhelming the server
+        time.sleep(1)  # avoid overwhelming server
         current_day += datetime.timedelta(days=1)
 
     print("\n📊 Summary of points fetched per month:")
