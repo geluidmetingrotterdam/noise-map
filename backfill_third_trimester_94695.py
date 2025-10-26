@@ -5,7 +5,7 @@ import io
 import datetime
 import time
 from collections import defaultdict
-from influxdb_client import InfluxDBClient, Point, WriteOptions
+from influxdb_client import InfluxDBClient, Point
 
 # ===== SETTINGS =====
 SENSOR_ID = 94695
@@ -39,7 +39,7 @@ def fetch_and_push(sensor_id, day: datetime.date):
 
         points_count = 0
         with InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG) as client:
-            write_api = client.write_api(write_options=WriteOptions(batch_size=1000, flush_interval=10000))
+            write_api = client.write_api()  # synchronous
             points = []
 
             for row in rows:
