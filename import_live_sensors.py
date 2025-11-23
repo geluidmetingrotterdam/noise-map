@@ -21,7 +21,7 @@ INFLUX_ORG = os.getenv("INFLUX_ORG")
 INFLUX_BUCKET = os.getenv("INFLUX_BUCKET")
 
 if not all([INFLUX_URL, INFLUX_TOKEN, INFLUX_ORG, INFLUX_BUCKET]):
-raise ValueError("InfluxDB credentials not set in environment variables")
+    raise ValueError("InfluxDB credentials not set in environment variables")
 
 def fetch_and_push(sensor_id, day):
 url = f"[https://archive.sensor.community/{day}/{day}_laerm_sensor_{sensor_id}.csv](https://archive.sensor.community/{day}/{day}_laerm_sensor_{sensor_id}.csv)"
