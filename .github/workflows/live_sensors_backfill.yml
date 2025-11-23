@@ -1,34 +1,32 @@
 name: Live Sensors InfluxDB Backfill
 
 on:
-schedule:
-- cron: "0 0 * * *"  # Runs daily at midnight UTC
-workflow_dispatch:      # Allows manual triggering
+  schedule:
+    - cron: "0 0 * * *"  # Runs daily at midnight UTC
+  workflow_dispatch: {}   # Allows manual triggering
 
 jobs:
-backfill:
-runs-on: ubuntu-latest
+  backfill:
+    runs-on: ubuntu-latest
 
-```
-steps:
-- name: Checkout repo
-  uses: actions/checkout@v4
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-- name: Set up Python
-  uses: actions/setup-python@v5
-  with:
-    python-version: "3.11"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-- name: Install dependencies
-  run: pip install requests influxdb-client
+      - name: Install dependencies
+        run: pip install requests influxdb-client
 
-- name: Run InfluxDB Backfill Script
-  env:
-    INFLUX_URL: ${{ secrets.INFLUX_URL }}
-    INFLUX_TOKEN: ${{ secrets.INFLUX_TOKEN }}
-    INFLUX_ORG: ${{ secrets.INFLUX_ORG }}
-    INFLUX_BUCKET: ${{ secrets.INFLUX_BUCKET }}
-  run: |
-    echo "Starting 30-day InfluxDB backfill for 11 live sensors..."
-    python import_live_sensors.py
-```
+      - name: Run InfluxDB Backfill Script
+        env:
+          INFLUX_URL: ${{ secrets.INFLUX_URL }}
+          INFLUX_TOKEN: ${{ secrets.INFLUX_TOKEN }}
+          INFLUX_ORG: ${{ secrets.INFLUX_ORG }}
+          INFLUX_BUCKET: ${{ secrets.INFLUX_BUCKET }}
+        run: |
+          echo "Starting 30-day InfluxDB backfill for 11 live sensors..."
+          python import_live_sensors.py
