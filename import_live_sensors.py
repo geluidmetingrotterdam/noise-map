@@ -21,7 +21,7 @@ INFLUX_ORG = os.getenv("INFLUX_ORG")
 INFLUX_BUCKET = os.getenv("INFLUX_BUCKET")
 
 if not all([INFLUX_URL, INFLUX_TOKEN, INFLUX_ORG, INFLUX_BUCKET]):
-    raise ValueError("InfluxDB credentials not set in environment variables")
+raise ValueError("InfluxDB credentials not set in environment variables")
 
 def fetch_and_push(sensor_id, day):
 url = f"[https://archive.sensor.community/{day}/{day}_laerm_sensor_{sensor_id}.csv](https://archive.sensor.community/{day}/{day}_laerm_sensor_{sensor_id}.csv)"
@@ -71,7 +71,7 @@ except Exception as e:
     return False
 ```
 
-def backfill_days(n_days: int = 7):
+def backfill_days(n_days: int = 30):
 today = datetime.date.today()
 for i in range(n_days):
 day = today - datetime.timedelta(days=i+1)
@@ -85,5 +85,7 @@ time.sleep(1)
 print(f"🎉 Finished {day_str}: {successful_fetches} sensors processed", flush=True)
 
 if **name** == "**main**":
-# Change n_days to 7, 14, or 30 depending on your backfill
+# Backfill last 30 days
+print("🚀 Starting 30-day InfluxDB backfill for 11 live sensors...")
 backfill_days(n_days=30)
+print("✅ Backfill completed.")
