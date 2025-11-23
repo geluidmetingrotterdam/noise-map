@@ -21,7 +21,9 @@ INFLUX_ORG = os.getenv("INFLUX_ORG")
 INFLUX_BUCKET = os.getenv("INFLUX_BUCKET")
 
 if not all([INFLUX_URL, INFLUX_TOKEN, INFLUX_ORG, INFLUX_BUCKET]):
-raise ValueError("InfluxDB credentials not set in environment variables")
+raise ValueError(
+"InfluxDB credentials not set in environment variables"
+)
 
 def fetch_and_push(sensor_id, day):
 url = f"[https://archive.sensor.community/{day}/{day}_laerm_sensor_{sensor_id}.csv](https://archive.sensor.community/{day}/{day}_laerm_sensor_{sensor_id}.csv)"
@@ -45,7 +47,11 @@ try:
         try:
             timestamp = datetime.datetime.fromisoformat(row["timestamp"])
             fields = {}
-            for key, field_name in [("noise_LAeq", "LAeq"), ("noise_LA_min", "LAmin"), ("noise_LA_max", "LAmax")]:
+            for key, field_name in [
+                ("noise_LAeq", "LAeq"),
+                ("noise_LA_min", "LAmin"),
+                ("noise_LA_max", "LAmax")
+            ]:
                 if row.get(key):
                     fields[field_name] = float(row[key])
             if fields:
@@ -60,8 +66,12 @@ try:
             print(f"⚠️ Skipping row due to error: {e}", flush=True)
 
     if points:
-        with InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG) as client:
-            write_api = client.write_api(write_options=WriteOptions(batch_size=1000, flush_interval=10000))
+        with InfluxDBClient(
+            url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG
+        ) as client:
+            write_api = client.write_api(
+                write_options=WriteOptions(batch_size=1000, flush_interval=10000)
+            )
             write_api.write(bucket=INFLUX_BUCKET, record=points)
 
     print(f"✅ Wrote {len(points)} points for sensor {sensor_id} on {day}", flush=True)
@@ -85,7 +95,6 @@ time.sleep(1)
 print(f"🎉 Finished {day_str}: {successful_fetches} sensors processed", flush=True)
 
 if **name** == "**main**":
-# Backfill last 30 days
 print("🚀 Starting 30-day InfluxDB backfill for 11 live sensors...")
 backfill_days(n_days=30)
 print("✅ Backfill completed.")
