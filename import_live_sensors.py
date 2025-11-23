@@ -86,4 +86,4 @@ print(f"🎉 Finished {day_str}: {successful_fetches} sensors processed", flush=
 
 if **name** == "**main**":
 # Change n_days to 7, 14, or 30 depending on your backfill
-backfill_days(n_days=7)
+backfill_days(n_days=30)
