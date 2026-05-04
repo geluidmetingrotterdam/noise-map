@@ -3,101 +3,154 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rotterdam Live Air Quality</title>
-    <!-- Leaflet CSS for the map -->
+    <title>Rotterdam Live Air Quality Map</title>
+    
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
     <style>
-        body { margin: 0; padding: 0; background: #0d1117; color: #c9d1d9; font-family: sans-serif; }
-        #map { height: 100vh; width: 100vw; background: #0d1117; }
-        #panel {
+        body { margin: 0; padding: 0; background: #0b0e14; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+        #map { height: 100vh; width: 100vw; background: #0b0e14; }
+        
+        #ui-panel {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
-            background: rgba(22, 27, 34, 0.9); padding: 20px;
-            border-radius: 10px; border: 1px solid #30363d;
-            min-width: 200px;
+            background: rgba(22, 27, 34, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #30363d;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            min-width: 240px;
         }
-        .count { font-size: 32px; font-weight: bold; color: #58a6ff; }
-        .error { color: #f85149; font-size: 12px; }
+
+        .status-header { display: flex; align-items: center; margin-bottom: 15px; }
+        .dot { height: 10px; width: 10px; background-color: #238636; border-radius: 50%; margin-right: 10px; box-shadow: 0 0 8px #238636; }
+        
+        .big-num { font-size: 38px; font-weight: 800; color: #58a6ff; margin: 5px 0; }
+        .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #8b949e; font-weight: 600; }
+        #status-msg { font-size: 12px; margin-top: 10px; color: #8b949e; border-top: 1px solid #30363d; padding-top: 10px; }
+        
+        /* Pulse Animation */
+        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(3); opacity: 0; } }
+        .leaflet-marker-icon { border: none !important; background: none !important; }
     </style>
 </head>
 <body>
 
-<div id="panel">
-    <div style="font-size: 11px; text-transform: uppercase; color: #8b949e;">Rotterdam Network</div>
-    <div id="count" class="count">--</div>
-    <div id="status" style="font-size: 12px;">Connecting...</div>
-</div>
+    <div id="ui-panel">
+        <div class="status-header">
+            <div class="dot"></div>
+            <div class="label">Rotterdam Network</div>
+        </div>
+        <div class="label">Active Sensors</div>
+        <div id="count" class="big-num">--</div>
+        <div id="status-msg">Initialising API connection...</div>
+    </div>
 
-<div id="map"></div>
+    <div id="map"></div>
 
-<!-- Leaflet and Heatmap Libraries -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.0.1/leaflet-heat.js"></script>
+    <!-- Leaflet JS and Heatmap Plugin -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.0.1/leaflet-heat.js"></script>
 
-<script>
-    // Initialize map on Rotterdam
-    const map = L.map('map', { zoomControl: false }).setView([51.9225, 4.47917], 12);
-
-    // Dark Tiles
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© SmartCitizen.me'
-    }).addTo(map);
-
-    async function loadData() {
-        const statusEl = document.getElementById('status');
-        const countEl = document.getElementById('count');
+    <script>
+        // 1. Initialize Map centered on Rotterdam
+        const map = L.map('map', { zoomControl: false }).setView([51.9225, 4.47917], 12);
         
-        // Correct API endpoint using the .me domain and tags plural
-        const url = 'https://api.smartcitizen.me/v0/devices?tags=rotterdam';
+        // 2. Add Dark Mode Tiles
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; SmartCitizen.me'
+        }).addTo(map);
 
-        try {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error("Connection Error");
+        async function fetchRotterdamData() {
+            const statusMsg = document.getElementById('status-msg');
+            const countEl = document.getElementById('count');
             
-            const devices = await response.json();
-            
-            if (devices.length === 0) {
-                statusEl.innerHTML = "<span class='error'>No devices found with 'rotterdam' tag.</span>";
-                return;
-            }
+            // This search looks for all devices within 25,000 meters (25km) of Rotterdam center
+            const lat = 51.9225;
+            const lng = 4.47917;
+            const radius = 25000;
+            const apiUrl = `https://api.smartcitizen.me/v0/devices?near=${lat},${lng}&radius=${radius}`;
 
-            let heatPoints = [];
-            let bounds = L.latLngBounds();
-
-            devices.forEach(d => {
-                if (d.latitude && d.longitude) {
-                    // Pull PM2.5 or default to a baseline intensity
-                    const sensors = d.data.sensors;
-                    const pm = sensors.find(s => s.name.includes("PM2.5"))?.value || 5;
-                    
-                    heatPoints.push([d.latitude, d.longitude, Math.min(pm / 35, 1.0)]);
-                    bounds.extend([d.latitude, d.longitude]);
-
-                    // Add a dot for each sensor
-                    L.circleMarker([d.latitude, d.longitude], {
-                        radius: 5, fillColor: "#58a6ff", color: "#fff", weight: 1, fillOpacity: 0.8
-                    }).addTo(map).bindPopup(`<b>${d.name}</b><br>PM2.5: ${pm}`);
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error("API Offline");
+                
+                const devices = await response.json();
+                
+                if (devices.length === 0) {
+                    statusMsg.innerText = "No sensors found in this area.";
+                    return;
                 }
-            });
 
-            // Create Heatmap
-            L.heatLayer(heatPoints, {
-                radius: 40, blur: 25, max: 1.0,
-                gradient: {0.4: 'blue', 0.6: 'cyan', 0.8: 'lime', 1.0: 'red'}
-            }).addTo(map);
+                let heatPoints = [];
+                let bounds = L.latLngBounds();
 
-            // Zoom map to show all sensors
-            map.fitBounds(bounds, { padding: [50, 50] });
-            countEl.innerText = heatPoints.length;
-            statusEl.innerText = "Data Synced";
+                // Clear existing markers if any
+                map.eachLayer((layer) => {
+                    if (layer instanceof L.CircleMarker || layer instanceof L.HeatLayer) {
+                        map.removeLayer(layer);
+                    }
+                });
 
-        } catch (err) {
-            statusEl.innerHTML = "<span class='error'>Failed to load data.</span>";
-            console.error(err);
+                devices.forEach(device => {
+                    if (device.latitude && device.longitude) {
+                        // Find PM2.5 sensor value
+                        const pmSensor = device.data.sensors.find(s => 
+                            s.name.toLowerCase().includes("pm2.5")
+                        );
+                        
+                        const pmVal = pmSensor ? pmSensor.value : 5; // Default low value if sensor missing
+                        
+                        // Add to Heatmap [lat, lng, intensity]
+                        // Normalize intensity: WHO standard is 15, so 30+ is "Heavy"
+                        const intensity = Math.min(pmVal / 30, 1.0);
+                        heatPoints.push([device.latitude, device.longitude, intensity]);
+                        
+                        bounds.extend([device.latitude, device.longitude]);
+
+                        // Add visual markers
+                        L.circleMarker([device.latitude, device.longitude], {
+                            radius: 6,
+                            fillColor: "#58a6ff",
+                            color: "#fff",
+                            weight: 1,
+                            fillOpacity: 0.8
+                        }).addTo(map).bindPopup(`
+                            <div style="color:#222">
+                                <b>${device.name}</b><br>
+                                PM2.5: ${pmVal.toFixed(1)} µg/m³<br>
+                                <small>ID: ${device.id}</small>
+                            </div>
+                        `);
+                    }
+                });
+
+                // Add Heatmap Layer
+                L.heatLayer(heatPoints, {
+                    radius: 45,
+                    blur: 25,
+                    max: 1.0,
+                    gradient: {0.4: 'blue', 0.6: 'cyan', 0.8: 'lime', 1.0: 'red'}
+                }).addTo(map);
+
+                // Adjust map to fit all found sensors
+                map.fitBounds(bounds, { padding: [40, 40] });
+                
+                countEl.innerText = devices.length;
+                statusMsg.innerText = "Live: Data synced from smartcitizen.me";
+
+            } catch (error) {
+                console.error(error);
+                statusMsg.innerHTML = "<span style='color:#f85149'>Connection Error</span>";
+            }
         }
-    }
 
-    loadData();
-</script>
+        // Initial Load
+        fetchRotterdamData();
 
+        // Refresh every 5 minutes
+        setInterval(fetchRotterdamData, 300000);
+    </script>
 </body>
 </html>
