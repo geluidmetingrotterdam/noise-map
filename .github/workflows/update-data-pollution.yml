@@ -1,39 +1,29 @@
 name: Update Rotterdam Pollution Data
-
 on:
   schedule:
-    - cron: '0 * * * *' # Runs automatically every hour
-  workflow_dispatch:      # Allows you to click "Run workflow" manually
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
-    # Gives the bot permission to write the data.json file to your repo
     permissions:
       contents: write
-      
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Fetch SmartCitizen Data
         run: |
-          # URL Encoding: [ = %5B | ] = %5D
-          # This prevents the "bad range" error in the Linux shell
-          curl -L -f "https://api.smartcitizen.me/v0/devices?q%5Bcity_cont%5D=Rotterdam" > data.json
+          # Filtering by the 'rotterdam' tag directly
+          curl -L -f "https://api.smartcitizen.me/v0/devices?tags=rotterdam" > data.json
           
-          # Check if the file was actually created and is not empty
-          if [ ! -s data.json ]; then 
-            echo "Error: API returned empty file or failed"
-            exit 1
-          fi
+          # Basic validation to ensure the file isn't empty
+          if [ ! -s data.json ]; then echo "API returned no data"; exit 1; fi
 
-      - name: Commit and Push Data
+      - name: Commit and Push
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add data.json
-          
-          # Only commit and push if the data has actually changed
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Automated update: live sensor data" && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Live data sync" && git push)
