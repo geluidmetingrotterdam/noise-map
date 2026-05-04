@@ -1,48 +1,97 @@
-<script>
-    const map = L.map('map', { zoomControl: false }).setView([51.9225, 4.47917], 13);
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rotterdam Health Map</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; CartoDB'
-    }).addTo(map);
+    <!-- Leaflet Resources -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
 
-    async function loadData() {
+    <style>
+        body { margin:0; padding:0; background: #111; color: white; font-family: sans-serif; }
+        /* Ensuring the map has a defined height so it isn't blank */
+        #map { height: 100vh; width: 100vw; background: #111; }
+        #dashboard { 
+            position: absolute; top: 20px; right: 20px; z-index: 1000; 
+            background: rgba(20, 20, 20, 0.9); padding: 15px; border-radius: 10px; 
+            border: 1px solid #333; width: 220px; box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+        }
+        h2 { margin: 0 0 5px 0; font-size: 14px; color: #ff4d4d; text-transform: uppercase; }
+        #status { font-size: 11px; margin-bottom: 10px; color: #ffa500; }
+    </style>
+</head>
+<body>
+
+<div id="dashboard">
+    <h2>DUSC Live Index</h2>
+    <div id="status">Initializing Map...</div>
+    <div style="font-size: 10px; color: #888;">Data: Local JSON Cache</div>
+</div>
+
+<div id="map"></div>
+
+<script>
+    // 1. Initialize Map FIRST (This prevents a blank screen)
+    const map = L.map('map', { 
+        zoomControl: false,
+        attributionControl: false 
+    }).setView([51.9225, 4.47917], 13);
+
+    // 2. Add Dark Tiles
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+    // 3. Load the local data.json created by GitHub Actions
+    async function loadCachedData() {
         const statusEl = document.getElementById('status');
+        
         try {
-            // No proxy needed anymore! We are reading your local file.
+            // Fetch the file created by your GitHub Action
             const response = await fetch('data.json');
-            if (!response.ok) throw new Error("Data file not found");
+            
+            if (!response.ok) {
+                throw new Error("data.json not found. Run GitHub Action first.");
+            }
             
             const devices = await response.json();
             let heatPoints = [];
 
             devices.forEach(d => {
                 if (d.latitude && d.longitude && d.last_reading) {
-                    // Pulling real-time PM2.5 and Noise
-                    const pm = d.last_reading['pm2.5'] || 10;
-                    const noise = d.last_reading['noise'] || 45;
-                    
-                    // Aggravation Logic: (PM / Limit) + (Noise / Limit)
+                    const pm = d.last_reading['pm2.5'] || 0;
+                    const noise = d.last_reading['noise'] || 0;
+                    // Aggravation Logic
                     const intensity = (pm / 35) + (noise / 75);
-                    heatPoints.push([d.latitude, d.longitude, intensity]);
+                    if(intensity > 0.1) {
+                        heatPoints.push([d.latitude, d.longitude, intensity]);
+                    }
                 }
             });
 
-            L.heatLayer(heatPoints, {
-                radius: 45,
-                blur: 25,
-                max: 1.5,
-                gradient: {0.2: 'cyan', 0.5: 'lime', 0.8: 'yellow', 1.0: 'red'}
-            }).addTo(map);
+            if (heatPoints.length > 0) {
+                L.heatLayer(heatPoints, {
+                    radius: 40,
+                    blur: 25,
+                    max: 1.5,
+                    gradient: {0.2: 'cyan', 0.5: 'lime', 0.8: 'yellow', 1.0: 'red'}
+                }).addTo(map);
+                statusEl.innerText = "● Live: " + heatPoints.length + " Sensors Active";
+                statusEl.style.color = "#00ff00";
+            } else {
+                statusEl.innerText = "No readings in data.json";
+            }
 
-            statusEl.innerText = "● Live Status: " + heatPoints.length + " Sensors Active";
-            statusEl.style.color = "#00ff00";
-
-        } catch (e) {
-            console.error(e);
-            statusEl.innerText = "Data Offline (Check Actions Tab)";
-            statusEl.style.color = "orange";
+        } catch (error) {
+            console.error("Mapping Error:", error);
+            statusEl.innerText = "Error: " + error.message;
+            statusEl.style.color = "#ff4d4d";
         }
     }
 
-    loadData();
+    // Run the data loader
+    loadCachedData();
 </script>
+</body>
+</html>
