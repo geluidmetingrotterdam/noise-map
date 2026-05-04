@@ -38,57 +38,74 @@
 <div id="map"></div>
 
 <script>
-    // Initialize Map with a Dark Theme
+    // 1. Initialize Dark Map
     const map = L.map('map').setView([51.9225, 4.47917], 13);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap'
+        attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    async function loadHeatmap() {
+    // 2. The CORS Proxy (Middleman)
+    // We use 'allorigins' to wrap the request and bypass browser blocks
+    const proxy = "https://api.allorigins.win/get?url=";
+
+    async function fetchRotterdamData() {
+        const statusEl = document.getElementById('status');
         try {
-            const response = await fetch('https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam');
-            const devices = await response.json();
-            document.getElementById('status').innerText = `Syncing ${devices.length} sensors...`;
+            statusEl.innerText = "Connecting via Proxy...";
+            
+            // Fetch list of devices in Rotterdam
+            const apiTarget = encodeURIComponent('https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam');
+            const response = await fetch(proxy + apiTarget);
+            const wrapper = await response.json();
+            const devices = JSON.parse(wrapper.contents); // AllOrigins returns data inside 'contents' string
 
-            let heatData = [];
+            let heatPoints = [];
+            statusEl.innerText = `Found ${devices.length} devices. Calculating...`;
 
-            for (let device of devices) {
+            // Limit to first 15 devices to prevent proxy timeouts
+            const subset = devices.slice(0, 15);
+
+            for (let device of subset) {
                 try {
-                    const detailRes = await fetch(`https://api.smartcitizen.me/v0/devices/${device.id}`);
-                    const detail = await detailRes.json();
+                    const detailUrl = encodeURIComponent(`https://api.smartcitizen.me/v0/devices/${device.id}`);
+                    const detailRes = await fetch(proxy + detailUrl);
+                    const detailWrap = await detailRes.json();
+                    const detail = JSON.parse(detailWrap.contents);
+                    
                     const sensors = detail.data.sensors;
 
-                    // Multi-Particle + Noise extraction
-                    const pm1 = sensors.find(s => s.name.includes("PM1 "))?.value || 0;
-                    const pm25 = sensors.find(s => s.name.includes("PM2.5"))?.value || 0;
-                    const pm10 = sensors.find(s => s.name.includes("PM10"))?.value || 0;
+                    // Extract Aggravated Metrics
+                    const p1  = sensors.find(s => s.name.includes("PM1 "))?.value || 0;
+                    const p25 = sensors.find(s => s.name.includes("PM2.5"))?.value || 0;
+                    const p10 = sensors.find(s => s.name.includes("PM10"))?.value || 0;
                     const noise = sensors.find(s => s.name.includes("Noise"))?.value || 0;
 
-                    // Aggravation Math: PM1 (Bloodstream) is weighted heaviest
-                    const pmTotal = (pm1 * 0.6) + (pm25 * 0.3) + (pm10 * 0.1);
-                    const intensity = (pmTotal / 40) + (noise / 75); 
+                    const pmAggregated = (p1 * 0.6) + (p25 * 0.3) + (p10 * 0.1);
+                    const hri = (pmAggregated / 40) + (noise / 75);
 
                     if (device.latitude && device.longitude) {
-                        heatData.push([device.latitude, device.longitude, intensity]);
+                        heatPoints.push([device.latitude, device.longitude, hri]);
                     }
-                } catch (e) { continue; } // Skip broken sensors
+                } catch (innerE) { continue; }
             }
 
-            L.heatLayer(heatData, {
-                radius: 35,
-                blur: 20,
+            // Draw Heatmap
+            L.heatLayer(heatPoints, {
+                radius: 40,
+                blur: 25,
                 max: 1.2,
-                gradient: {0.2: 'blue', 0.4: 'cyan', 0.6: 'lime', 0.8: 'yellow', 1: 'red'}
+                gradient: {0.2: 'blue', 0.4: 'cyan', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'}
             }).addTo(map);
 
-            document.getElementById('status').innerText = `Live: ${heatData.length} active zones`;
+            statusEl.innerText = `Live: ${heatPoints.length} Aggravation Zones`;
 
-        } catch (error) {
-            document.getElementById('status').innerText = "API connection error.";
+        } catch (e) {
+            console.error("Full error:", e);
+            statusEl.innerText = "Connection Failed. Try refreshing.";
         }
     }
 
-    loadHeatmap();
+    fetchRotterdamData();
 </script>
 </body>
 </html>
