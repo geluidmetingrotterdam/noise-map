@@ -38,70 +38,74 @@
 <div id="map"></div>
 
 <script>
-    // 1. Initialize Dark Map
+    // 1. Initialize Map
     const map = L.map('map').setView([51.9225, 4.47917], 13);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap contributors'
+        attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    // 2. The CORS Proxy (Middleman)
-    // We use 'allorigins' to wrap the request and bypass browser blocks
-    const proxy = "https://api.allorigins.win/get?url=";
+    // 2. Reliable Proxy for 2026
+    const proxy = "https://corsproxy.io/?url=";
 
     async function fetchRotterdamData() {
         const statusEl = document.getElementById('status');
         try {
-            statusEl.innerText = "Connecting via Proxy...";
+            statusEl.innerText = "Accessing SmartCitizen API...";
             
             // Fetch list of devices in Rotterdam
-            const apiTarget = encodeURIComponent('https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam');
-            const response = await fetch(proxy + apiTarget);
-            const wrapper = await response.json();
-            const devices = JSON.parse(wrapper.contents); // AllOrigins returns data inside 'contents' string
+            const apiUrl = "https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam";
+            const response = await fetch(proxy + encodeURIComponent(apiUrl));
+            
+            if (!response.ok) throw new Error("Proxy limit reached");
+            const devices = await response.json();
 
             let heatPoints = [];
-            statusEl.innerText = `Found ${devices.length} devices. Calculating...`;
+            // We take a smaller batch (12) to ensure the proxy doesn't time out
+            const batch = devices.slice(0, 12);
+            statusEl.innerText = `Found ${devices.length} sensors. Analysing batch...`;
 
-            // Limit to first 15 devices to prevent proxy timeouts
-            const subset = devices.slice(0, 15);
-
-            for (let device of subset) {
+            for (let device of batch) {
                 try {
-                    const detailUrl = encodeURIComponent(`https://api.smartcitizen.me/v0/devices/${device.id}`);
-                    const detailRes = await fetch(proxy + detailUrl);
-                    const detailWrap = await detailRes.json();
-                    const detail = JSON.parse(detailWrap.contents);
+                    const detailUrl = `https://api.smartcitizen.me/v0/devices/${device.id}`;
+                    const detailRes = await fetch(proxy + encodeURIComponent(detailUrl));
+                    const detail = await detailRes.json();
                     
                     const sensors = detail.data.sensors;
 
-                    // Extract Aggravated Metrics
+                    // PM Metrics
                     const p1  = sensors.find(s => s.name.includes("PM1 "))?.value || 0;
                     const p25 = sensors.find(s => s.name.includes("PM2.5"))?.value || 0;
                     const p10 = sensors.find(s => s.name.includes("PM10"))?.value || 0;
                     const noise = sensors.find(s => s.name.includes("Noise"))?.value || 0;
 
+                    // Aggravation Calculation
                     const pmAggregated = (p1 * 0.6) + (p25 * 0.3) + (p10 * 0.1);
                     const hri = (pmAggregated / 40) + (noise / 75);
 
-                    if (device.latitude && device.longitude) {
+                    if (device.latitude && device.longitude && hri > 0) {
                         heatPoints.push([device.latitude, device.longitude, hri]);
                     }
-                } catch (innerE) { continue; }
+                } catch (err) { continue; }
             }
 
-            // Draw Heatmap
+            if (heatPoints.length === 0) {
+                statusEl.innerText = "No live data found. Try later.";
+                return;
+            }
+
+            // Render Heatmap
             L.heatLayer(heatPoints, {
-                radius: 40,
+                radius: 45,
                 blur: 25,
-                max: 1.2,
+                max: 1.5,
                 gradient: {0.2: 'blue', 0.4: 'cyan', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'}
             }).addTo(map);
 
-            statusEl.innerText = `Live: ${heatPoints.length} Aggravation Zones`;
+            statusEl.innerText = `Success: ${heatPoints.length} sites mapped`;
 
         } catch (e) {
-            console.error("Full error:", e);
-            statusEl.innerText = "Connection Failed. Try refreshing.";
+            console.error(e);
+            statusEl.innerText = "Connection Failed. Please Refresh.";
         }
     }
 
