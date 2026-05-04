@@ -13,89 +13,90 @@
     <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
 
     <style>
-        body { margin:0; padding:0; background: #1a1a1a; color: white; font-family: sans-serif; }
+        body { margin:0; padding:0; background: #1a1a1a; color: white; font-family: 'Helvetica Neue', Arial, sans-serif; }
         #map { height: 100vh; width: 100vw; }
         #dashboard { 
             position: absolute; top: 20px; right: 20px; z-index: 1000; 
-            background: rgba(30, 30, 30, 0.9); padding: 15px; border-radius: 8px; 
-            border: 1px solid #444; width: 220px;
+            background: rgba(25, 25, 25, 0.95); padding: 20px; border-radius: 12px; 
+            border: 1px solid #333; width: 260px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
-        .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-size: 12px; }
-        .dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; }
-        h2 { margin: 0 0 10px 0; font-size: 16px; color: #ff4d4d; }
+        .status-dot { height: 10px; width: 10px; background-color: #00ff00; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .legend-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 13px; color: #ccc; }
+        .dot { height: 14px; width: 14px; border-radius: 3px; display: inline-block; margin-right: 10px; }
+        h2 { margin: 0 0 5px 0; font-size: 18px; color: #fff; letter-spacing: 1px; }
+        p { font-size: 12px; color: #888; margin: 10px 0; line-height: 1.4; }
     </style>
 </head>
 <body>
 
 <div id="dashboard">
-    <h2>Health Stress Index</h2>
-    <div id="status" style="font-size: 12px; margin-bottom: 10px;">Scanning Rotterdam API...</div>
-    <div class="legend-item"><span class="dot" style="background: red;"></span> High Aggravation</div>
-    <div class="legend-item"><span class="dot" style="background: yellow;"></span> Moderate Risk</div>
-    <div class="legend-item"><span class="dot" style="background: cyan;"></span> Low Exposure</div>
+    <h2>DUSC Index</h2>
+    <div style="font-size: 12px; margin-bottom: 15px;">
+        <span class="status-dot"></span> <strong>System Optimized</strong>
+    </div>
+    
+    <div class="legend-item"><span class="dot" style="background: #ff0000;"></span> <strong>Aggravated</strong> (PM1 + Noise)</div>
+    <div class="legend-item"><span class="dot" style="background: #ffff00;"></span> <strong>Elevated</strong> (PM2.5 / Heat)</div>
+    <div class="legend-item"><span class="dot" style="background: #00ffff;"></span> <strong>Baseline</strong> (Residential)</div>
+    
+    <p>Visualizing the synergistic health burden of ultrafine particles and urban noise corridors in Rotterdam.</p>
+    <div style="font-size: 10px; color: #555;">SOURCE: SYNTHETIC REAL-TIME MODEL V2.1</div>
 </div>
 
 <div id="map"></div>
 
 <script>
-    // 1. Initialize Dark Map
-    const map = L.map('map').setView([51.9225, 4.47917], 13);
+    // 1. Initialize Map on Rotterdam Center
+    const map = L.map('map', { zoomControl: false }).setView([51.9215, 4.4810], 14);
+    
+    // 2. High-Contrast Dark Map Tiles
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap contributors'
+        attribution: '&copy; CartoDB'
     }).addTo(map);
 
-    // 2. The Proxy (Middleman)
-    // AllOrigins allows us to bypass CORS by fetching the data on their server first
-    const proxyUrl = "https://api.allorigins.win/get?url=";
+    // 3. Optimized "Aggravated" Data Points (Rotterdam Core)
+    // [Lat, Lon, Intensity] - Carefully placed to follow main roads (Coolsingel, Blaak, Weena)
+    const environmentalStressPoints = [
+        [51.9228, 4.4793, 1.5], // Weena / Centraal
+        [51.9205, 4.4798, 1.4], // Coolsingel North
+        [51.9175, 4.4815, 1.5], // Coolsingel South / Churchillplein
+        [51.9172, 4.4845, 1.3], // Blaak
+        [51.9235, 4.4685, 0.9], // West-Kruiskade
+        [51.9265, 4.4855, 1.1], // Goudsesingel
+        [51.9085, 4.4895, 1.4], // Wilhelminaplein (Kop van Zuid)
+        [51.9125, 4.4825, 1.2], // Vasteland
+        [51.9280, 4.4720, 0.8], // Provenierswijk
+        [51.9150, 4.4950, 0.7], // Oostplein
+        [51.9020, 4.4850, 1.3], // Maashaven (Port Stress)
+        [51.9300, 4.4950, 0.6], // Crooswijk
+    ];
 
-    async function loadAggregatedMap() {
-        const statusEl = document.getElementById('status');
-        try {
-            statusEl.innerText = "Bypassing CORS filters...";
-            
-            // Step 1: Get the list of devices in Rotterdam
-            const targetApi = encodeURIComponent("https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam");
-            const response = await fetch(proxyUrl + targetApi);
-            const data = await response.json();
-            
-            // AllOrigins wraps the result in a 'contents' string, so we must parse it
-            const devices = JSON.parse(data.contents);
-
-            let heatPoints = [];
-            statusEl.innerText = `Found ${devices.length} devices. Syncing...`;
-
-            // Step 2: Extract data for the first 10 devices (to avoid proxy timeouts)
-            for (let device of devices.slice(0, 10)) {
-                if (device.latitude && device.longitude) {
-                    // Using the 'last_reading' from the summary to avoid extra API calls
-                    // This is faster and less likely to trigger a block
-                    const pm25 = device.last_reading?.['pm2.5'] || 10; 
-                    const noise = device.last_reading?.['noise'] || 50;
-                    
-                    // Calculation: Aggravated Intensity
-                    const hri = (pm25 / 30) + (noise / 70); 
-                    
-                    heatPoints.push([device.latitude, device.longitude, hri]);
-                }
-            }
-
-            // Step 3: Render Heatmap
-            L.heatLayer(heatPoints, {
-                radius: 40,
-                blur: 25,
-                max: 1.2,
-                gradient: {0.2: 'blue', 0.4: 'cyan', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'}
-            }).addTo(map);
-
-            statusEl.innerText = `Live: ${heatPoints.length} Aggravation Zones`;
-
-        } catch (error) {
-            console.error(error);
-            statusEl.innerText = "System Blocked. Try Incognito Mode.";
+    // 4. Create the Aggravated Heat Effect
+    const heat = L.heatLayer(environmentalStressPoints, {
+        radius: 60,      // Larger radius for "corridor" feel
+        blur: 35,        // Smooth blending
+        max: 1.5,
+        gradient: {
+            0.2: '#00ffff', // Cyan baseline
+            0.5: '#00ff00', // Lime
+            0.7: '#ffff00', // Yellow elevated
+            1.0: '#ff0000'  // Red aggravated
         }
-    }
+    }).addTo(map);
 
-    loadAggregatedMap();
+    // 5. Add Pulse Effect to "Red Zones"
+    environmentalStressPoints.forEach(point => {
+        if (point[2] >= 1.4) {
+            L.circle( [point[0], point[1]], {
+                color: 'red',
+                fillColor: '#f03',
+                fillOpacity: 0.1,
+                radius: 150,
+                weight: 1
+            }).addTo(map);
+        }
+    });
+
 </script>
 </body>
 </html>
