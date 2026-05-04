@@ -1,0 +1,27 @@
+name: Update Rotterdam Pollution Data
+on:
+  schedule:
+    - cron: '0 * * * *' # Updates every hour on the hour
+  workflow_dispatch: # Allows you to click a button to update manually
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Crucial: gives the robot permission to save the file
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Fetch SmartCitizen Data
+        run: |
+          # This pulls the actual Rotterdam sensor list into data.json
+          curl "https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam" > data.json
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "actions@github.com"
+          git add data.json
+          git commit -m "Automated update: live sensor data" || exit 0
+          git push
