@@ -38,62 +38,64 @@
 <div id="map"></div>
 
 <script>
-    // 1. Initialize Map
+    // 1. Initialize Dark Map
     const map = L.map('map').setView([51.9225, 4.47917], 13);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // 2. The JSONP Callback Function
-    // This function will be triggered automatically when the data arrives
-    window.handleSmartCitizenData = function(data) {
-        const statusEl = document.getElementById('status');
-        let heatPoints = [];
+    // 2. The Proxy (Middleman)
+    // AllOrigins allows us to bypass CORS by fetching the data on their server first
+    const proxyUrl = "https://api.allorigins.win/get?url=";
 
-        // SmartCitizen returns an array of devices
-        if (data && data.length > 0) {
-            statusEl.innerText = `Processing ${data.length} sensors...`;
+    async function loadAggregatedMap() {
+        const statusEl = document.getElementById('status');
+        try {
+            statusEl.innerText = "Bypassing CORS filters...";
             
-            data.forEach(device => {
-                // Since JSONP for details is complex, we use the "last_reading" 
-                // provided in the main search if available, or estimated weights.
-                // For a robust heatmap, we use the device's basic activity level
+            // Step 1: Get the list of devices in Rotterdam
+            const targetApi = encodeURIComponent("https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam");
+            const response = await fetch(proxyUrl + targetApi);
+            const data = await response.json();
+            
+            // AllOrigins wraps the result in a 'contents' string, so we must parse it
+            const devices = JSON.parse(data.contents);
+
+            let heatPoints = [];
+            statusEl.innerText = `Found ${devices.length} devices. Syncing...`;
+
+            // Step 2: Extract data for the first 10 devices (to avoid proxy timeouts)
+            for (let device of devices.slice(0, 10)) {
                 if (device.latitude && device.longitude) {
-                    // We generate a base intensity from the 'updated_at' 
-                    // to show active vs inactive sensors
-                    const activityLevel = device.data ? 1.0 : 0.5; 
-                    heatPoints.push([device.latitude, device.longitude, activityLevel]);
+                    // Using the 'last_reading' from the summary to avoid extra API calls
+                    // This is faster and less likely to trigger a block
+                    const pm25 = device.last_reading?.['pm2.5'] || 10; 
+                    const noise = device.last_reading?.['noise'] || 50;
+                    
+                    // Calculation: Aggravated Intensity
+                    const hri = (pm25 / 30) + (noise / 70); 
+                    
+                    heatPoints.push([device.latitude, device.longitude, hri]);
                 }
-            });
+            }
 
+            // Step 3: Render Heatmap
             L.heatLayer(heatPoints, {
-                radius: 35, blur: 20, max: 1.0,
-                gradient: {0.2: 'blue', 0.4: 'cyan', 0.6: 'lime', 0.8: 'yellow', 1: 'red'}
+                radius: 40,
+                blur: 25,
+                max: 1.2,
+                gradient: {0.2: 'blue', 0.4: 'cyan', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'}
             }).addTo(map);
-            
-            statusEl.innerText = `Live: ${heatPoints.length} sites mapped`;
-        } else {
-            statusEl.innerText = "No data found for Rotterdam.";
-        }
-    };
 
-    // 3. Inject the JSONP Script
-    function loadData() {
-        const statusEl = document.getElementById('status');
-        statusEl.innerText = "Requesting JSONP Stream...";
-        
-        const script = document.createElement('script');
-        // The 'callback' parameter is the secret key here
-        script.src = "https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam&callback=handleSmartCitizenData";
-        
-        script.onerror = function() {
-            statusEl.innerText = "JSONP Blocked. Try a different browser.";
-        };
-        
-        document.body.appendChild(script);
+            statusEl.innerText = `Live: ${heatPoints.length} Aggravation Zones`;
+
+        } catch (error) {
+            console.error(error);
+            statusEl.innerText = "System Blocked. Try Incognito Mode.";
+        }
     }
 
-    loadData();
+    loadAggregatedMap();
 </script>
 </body>
 </html>
