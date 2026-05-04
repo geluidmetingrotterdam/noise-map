@@ -1,77 +1,85 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Rotterdam Live Sensor</title>
+    <title>Rotterdam Sensor Live</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; background: #111; }
-        #map { height: 100vh; width: 100vw; }
-        #status {
+        body { margin: 0; padding: 0; background: #1a1a1a; color: white; font-family: sans-serif; }
+        #map { height: 100vh; width: 100vw; background: #111; }
+        #status-box {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
-            background: rgba(0,0,0,0.8); color: white; padding: 10px 15px;
-            font-family: monospace; border-radius: 5px; border: 1px solid #444;
+            background: rgba(0, 0, 0, 0.85); padding: 15px;
+            border-radius: 8px; border: 1px solid #333; min-width: 200px;
         }
+        .live-dot { color: #00ff00; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div id="status">Connecting to Rotterdam Sensor...</div>
+    <div id="status-box">
+        <div id="title"><b>Rotterdam Air Quality</b></div>
+        <div id="status">🔍 Searching for sensor...</div>
+    </div>
+
     <div id="map"></div>
 
-    <!-- Leaflet and Heatmap Plugin -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.0.1/leaflet-heat.js"></script>
 
     <script>
-        // 1. Initialize Map centered on Rotterdam
+        // 1. Setup Map
         const map = L.map('map', { zoomControl: false }).setView([51.9225, 4.47917], 13);
         
-        // 2. Add Dark Mode Tiles
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+        // 2. Add Dark Tiles (CartoDB)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
 
-        async function fetchLastReading() {
+        async function init() {
             const statusEl = document.getElementById('status');
             
-            // REPLACE THIS NUMBER with your actual Device ID from the SmartCitizen URL
-            const deviceId = '12345'; 
+            // !!! UPDATE THIS ID !!!
+            // Use an ID you found on smartcitizen.org/map
+            const deviceId = '15432'; 
 
             try {
-                // Fetch only the most recent data point from the API
                 const response = await fetch(`https://api.smartcitizen.org/v0/devices/${deviceId}`);
-                if (!response.ok) throw new Error("Device not found");
                 
+                if (!response.ok) {
+                    throw new Error(`Device ${deviceId} not found.`);
+                }
+
                 const device = await response.json();
                 
-                // Get Coordinates
-                const lat = device.latitude;
-                const lng = device.longitude;
-
-                // Get PM2.5 value from the sensors array
-                const pmSensor = device.data.sensors.find(s => s.name.includes("PM2.5"));
-                const pmValue = pmSensor ? pmSensor.value : 0;
-                const lastSeen = new Date(device.last_reading_at).toLocaleTimeString();
-
-                // 3. Add Heatmap Point
-                // We normalize the intensity (PM2.5 of 35+ is considered "heavy")
-                const intensity = Math.min(pmValue / 35, 1.0);
+                // Get data
+                const lat = device.latitude || 51.9225;
+                const lng = device.longitude || 4.47917;
+                
+                // Find PM2.5 in the sensors array
+                const pmSensor = device.data.sensors.find(s => s.name.toLowerCase().includes("pm2.5"));
+                const val = pmSensor ? pmSensor.value : "N/A";
+                
+                // Update Heatmap
+                const intensity = val !== "N/A" ? Math.min(val / 35, 1.0) : 0.5;
                 L.heatLayer([[lat, lng, intensity]], {
-                    radius: 60, blur: 40, max: 1.0,
-                    gradient: {0.4: 'cyan', 0.6: 'yellow', 1.0: 'red'}
+                    radius: 40, blur: 25, max: 1.0,
+                    gradient: {0.4: 'blue', 0.6: 'cyan', 0.8: 'lime', 1.0: 'red'}
                 }).addTo(map);
 
-                // 4. Update Status and Move Map
-                map.flyTo([lat, lng], 15);
-                statusEl.innerHTML = `● LIVE: ${pmValue} µg/m³ (PM2.5)<br><small>Last Update: ${lastSeen}</small>`;
-                statusEl.style.color = "#00ff00";
+                // Update Text
+                statusEl.innerHTML = `<span class="live-dot">●</span> PM2.5: ${val} µg/m³<br>
+                                     <small>Location: ${device.name}</small>`;
+                
+                map.flyTo([lat, lng], 14);
 
-            } catch (error) {
-                console.error(error);
-                statusEl.innerText = "Error: Could not reach sensor.";
-                statusEl.style.color = "#ff4d4d";
+            } catch (err) {
+                statusEl.innerHTML = `<span style="color:red">⚠️ ${err.message}</span><br>
+                                     <small>Check the Device ID in the code.</small>`;
+                console.error("Fetch Error:", err);
             }
         }
 
-        fetchLastReading();
+        init();
     </script>
 </body>
 </html>
