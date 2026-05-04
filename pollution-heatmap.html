@@ -1,67 +1,48 @@
 <script>
-    // 1. Setup Map
-    const map = L.map('map').setView([51.9225, 4.47917], 13);
+    const map = L.map('map', { zoomControl: false }).setView([51.9225, 4.47917], 13);
+    
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap'
+        attribution: '&copy; CartoDB'
     }).addTo(map);
 
-    async function loadRealData() {
+    async function loadData() {
         const statusEl = document.getElementById('status');
-        const detailsEl = document.getElementById('details');
-        
-        // We use corsproxy.io - it is currently the most 'invisible' to Safari
-        const proxy = "https://corsproxy.io/?";
-        const target = "https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam";
-
         try {
-            statusEl.innerText = "Bypassing Security...";
-            
-            // Fetching via the clean proxy
-            const response = await fetch(proxy + encodeURIComponent(target));
-            
-            if (!response.ok) throw new Error("Proxy Rejected");
+            // No proxy needed anymore! We are reading your local file.
+            const response = await fetch('data.json');
+            if (!response.ok) throw new Error("Data file not found");
             
             const devices = await response.json();
             let heatPoints = [];
 
-            devices.forEach(device => {
-                // Accessing the 'last_reading' directly from the array
-                if (device.latitude && device.longitude && device.last_reading) {
-                    const pm25 = device.last_reading['pm2.5'] || 10;
-                    const noise = device.last_reading['noise'] || 40;
+            devices.forEach(d => {
+                if (d.latitude && d.longitude && d.last_reading) {
+                    // Pulling real-time PM2.5 and Noise
+                    const pm = d.last_reading['pm2.5'] || 10;
+                    const noise = d.last_reading['noise'] || 45;
                     
-                    // Our 'Aggravation' Logic
-                    const intensity = (pm25 / 35) + (noise / 75);
-                    
-                    if (intensity > 0.1) {
-                        heatPoints.push([device.latitude, device.longitude, intensity]);
-                    }
+                    // Aggravation Logic: (PM / Limit) + (Noise / Limit)
+                    const intensity = (pm / 35) + (noise / 75);
+                    heatPoints.push([d.latitude, d.longitude, intensity]);
                 }
             });
 
-            if (heatPoints.length > 0) {
-                L.heatLayer(heatPoints, {
-                    radius: 40,
-                    blur: 25,
-                    max: 1.5,
-                    gradient: {0.2: 'blue', 0.5: 'lime', 0.8: 'yellow', 1.0: 'red'}
-                }).addTo(map);
-                
-                statusEl.innerText = "● Live Data Active";
-                statusEl.style.color = "#00ff00";
-                detailsEl.innerText = `Successfully mapped ${heatPoints.length} Rotterdam sensors.`;
-            } else {
-                statusEl.innerText = "No Readings Found";
-                detailsEl.innerText = "Sensors are online but readings are currently null.";
-            }
+            L.heatLayer(heatPoints, {
+                radius: 45,
+                blur: 25,
+                max: 1.5,
+                gradient: {0.2: 'cyan', 0.5: 'lime', 0.8: 'yellow', 1.0: 'red'}
+            }).addTo(map);
 
-        } catch (error) {
-            console.error("Technical Error:", error);
-            statusEl.innerText = "Encrypted Tunnel Blocked";
-            statusEl.style.color = "#ff4d4d";
-            detailsEl.innerHTML = "Safari/Firefox High-Security detected. <br><strong>Action:</strong> Please click the 'Shield' icon in your URL bar and 'Turn Off' tracking protection for this page.";
+            statusEl.innerText = "● Live Status: " + heatPoints.length + " Sensors Active";
+            statusEl.style.color = "#00ff00";
+
+        } catch (e) {
+            console.error(e);
+            statusEl.innerText = "Data Offline (Check Actions Tab)";
+            statusEl.style.color = "orange";
         }
     }
 
-    loadRealData();
+    loadData();
 </script>
