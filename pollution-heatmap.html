@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; background: #0d1117; color: #c9d1d9; font-family: sans-serif; }
-        #map { height: 100vh; width: 100vw; }
+        #map { height: 100vh; width: 100vw; background: #0d1117; }
         #ui {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
             background: #161b22; padding: 20px; border-radius: 8px;
@@ -21,26 +21,26 @@
 <div id="ui">
     <div class="label">ROTTERDAM NETWORK</div>
     <div id="count" class="big">--</div>
-    <div id="msg" style="font-size: 12px;">Connecting to API...</div>
+    <div id="msg" style="font-size: 12px;">Connecting...</div>
 </div>
 
 <div id="map"></div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- Heatmap Plugin -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.0.1/leaflet-heat.js"></script>
 
 <script>
-    // 1. Setup Map
+    // 1. Setup Map - Set high z-index for markers
     const map = L.map('map', { zoomControl: false }).setView([51.92, 4.47], 12);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+    // 2. Add Tiles (Lower Pane)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        pane: 'tilePane'
+    }).addTo(map);
 
     async function init() {
         const msg = document.getElementById('msg');
         const count = document.getElementById('count');
-
-        // Fetching devices within 15km of Rotterdam center
         const url = 'https://api.smartcitizen.me/v0/devices?near=51.9225,4.4791&radius=15000';
 
         try {
@@ -48,48 +48,50 @@
             const data = await response.json();
             
             if (!data || data.length === 0) {
-                msg.innerText = "No sensors active in Rotterdam.";
+                msg.innerText = "No sensors found.";
                 return;
             }
 
             let heatPoints = [];
+            let bounds = L.latLngBounds(); // To track where sensors are
 
             data.forEach(d => {
                 if (d.latitude && d.longitude) {
-                    // Get PM2.5 value or use 5 as a safe baseline
                     const pmSensor = d.data.sensors.find(s => s.name.includes("PM2.5"));
                     const pmValue = pmSensor ? pmSensor.value : 5;
                     
-                    // Add to heatmap data array
-                    heatPoints.push([d.latitude, d.longitude, Math.min(pmValue / 40, 1)]);
-                    
-                    // Add a small circle for each sensor
+                    heatPoints.push([d.latitude, d.longitude, 1.0]); // Set max intensity to ensure visibility
+                    bounds.extend([d.latitude, d.longitude]);
+
+                    // Add markers with a bright color
                     L.circleMarker([d.latitude, d.longitude], {
-                        radius: 5,
-                        fillColor: "#58a6ff",
+                        radius: 8,
+                        fillColor: "#00fff2", // Bright Cyan
                         color: "#fff",
-                        weight: 1,
-                        fillOpacity: 0.8
+                        weight: 2,
+                        fillOpacity: 1,
+                        pane: 'markerPane' // Force to top
                     }).addTo(map).bindPopup(`<b>${d.name}</b><br>PM2.5: ${pmValue.toFixed(1)}`);
                 }
             });
 
-            // 2. FIXED: Only add HeatLayer if we actually have points
             if (heatPoints.length > 0) {
-                const heatLayer = L.heatLayer(heatPoints, {
-                    radius: 35,
+                L.heatLayer(heatPoints, {
+                    radius: 40,
                     blur: 15,
                     max: 1.0,
                     gradient: {0.4: 'blue', 0.6: 'cyan', 0.8: 'lime', 1.0: 'red'}
-                });
-                heatLayer.addTo(map);
+                }).addTo(map);
+                
+                // 3. IMPORTANT: Zoom to the sensors found
+                map.fitBounds(bounds, { padding: [50, 50] });
             }
 
             count.innerText = data.length;
             msg.innerText = "Live: Data Synced";
 
         } catch (e) {
-            msg.innerHTML = "<b style='color:#f85149'>Error:</b> " + e.message;
+            msg.innerText = "Error: " + e.message;
         }
     }
 
