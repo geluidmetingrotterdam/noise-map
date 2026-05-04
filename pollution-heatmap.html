@@ -38,74 +38,57 @@
 <div id="map"></div>
 
 <script>
-    // 1. Initialize Map
     const map = L.map('map').setView([51.9225, 4.47917], 13);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    // 2. Reliable Proxy for 2026
-    const proxy = "https://corsproxy.io/?url=";
-
     async function fetchRotterdamData() {
         const statusEl = document.getElementById('status');
         try {
-            statusEl.innerText = "Accessing SmartCitizen API...";
+            statusEl.innerText = "Direct Link Attempt...";
             
-            // Fetch list of devices in Rotterdam
-            const apiUrl = "https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam";
-            const response = await fetch(proxy + encodeURIComponent(apiUrl));
+            // We add a random 'cache-buster' at the end to force a fresh connection
+            const apiUrl = "https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam&cb=" + Math.random();
             
-            if (!response.ok) throw new Error("Proxy limit reached");
+            const response = await fetch(apiUrl, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+
+            if (!response.ok) throw new Error("API Rejected Connection");
             const devices = await response.json();
 
             let heatPoints = [];
-            // We take a smaller batch (12) to ensure the proxy doesn't time out
-            const batch = devices.slice(0, 12);
-            statusEl.innerText = `Found ${devices.length} sensors. Analysing batch...`;
+            statusEl.innerText = `Connected! Analyzing sensors...`;
 
-            for (let device of batch) {
+            // Process sensors
+            for (let device of devices.slice(0, 15)) {
                 try {
-                    const detailUrl = `https://api.smartcitizen.me/v0/devices/${device.id}`;
-                    const detailRes = await fetch(proxy + encodeURIComponent(detailUrl));
+                    const detailRes = await fetch(`https://api.smartcitizen.me/v0/devices/${device.id}`);
                     const detail = await detailRes.json();
-                    
                     const sensors = detail.data.sensors;
 
-                    // PM Metrics
-                    const p1  = sensors.find(s => s.name.includes("PM1 "))?.value || 0;
+                    const p1 = sensors.find(s => s.name.includes("PM1 "))?.value || 0;
                     const p25 = sensors.find(s => s.name.includes("PM2.5"))?.value || 0;
                     const p10 = sensors.find(s => s.name.includes("PM10"))?.value || 0;
                     const noise = sensors.find(s => s.name.includes("Noise"))?.value || 0;
 
-                    // Aggravation Calculation
-                    const pmAggregated = (p1 * 0.6) + (p25 * 0.3) + (p10 * 0.1);
-                    const hri = (pmAggregated / 40) + (noise / 75);
+                    const hri = ((p1 * 0.6) + (p25 * 0.3) + (p10 * 0.1) / 40) + (noise / 75);
 
-                    if (device.latitude && device.longitude && hri > 0) {
+                    if (device.latitude && device.longitude) {
                         heatPoints.push([device.latitude, device.longitude, hri]);
                     }
-                } catch (err) { continue; }
+                } catch (e) { continue; }
             }
 
-            if (heatPoints.length === 0) {
-                statusEl.innerText = "No live data found. Try later.";
-                return;
-            }
-
-            // Render Heatmap
-            L.heatLayer(heatPoints, {
-                radius: 45,
-                blur: 25,
-                max: 1.5,
-                gradient: {0.2: 'blue', 0.4: 'cyan', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'}
-            }).addTo(map);
-
-            statusEl.innerText = `Success: ${heatPoints.length} sites mapped`;
+            L.heatLayer(heatPoints, {radius: 35, blur: 20, max: 1.2}).addTo(map);
+            statusEl.innerText = `Success: ${heatPoints.length} Points`;
 
         } catch (e) {
             console.error(e);
-            statusEl.innerText = "Connection Failed. Please Refresh.";
+            // If direct fails, show a more helpful error
+            statusEl.innerHTML = "Direct API block. <br><small>Your browser is blocking the data.</small>";
         }
     }
 
