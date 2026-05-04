@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Rotterdam Air Quality</title>
+    <title>Rotterdam Live Air Quality</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; background: #0d1117; color: #c9d1d9; font-family: sans-serif; }
@@ -10,25 +10,29 @@
         #ui {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
             background: #161b22; padding: 20px; border-radius: 8px;
-            border: 1px solid #30363d; min-width: 200px;
+            border: 1px solid #30363d; min-width: 220px;
         }
-        .big { font-size: 32px; font-weight: bold; color: #58a6ff; }
+        .big { font-size: 38px; font-weight: bold; color: #58a6ff; }
+        .label { font-size: 11px; letter-spacing: 1px; color: #8b949e; }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <div style="font-size: 11px; color: #8b949e;">ROTTERDAM NETWORK</div>
+    <div class="label">ROTTERDAM NETWORK</div>
     <div id="count" class="big">--</div>
-    <div id="msg">Connecting...</div>
+    <div id="msg" style="font-size: 12px;">Connecting to API...</div>
 </div>
 
 <div id="map"></div>
 
+<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Heatmap Plugin -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.0.1/leaflet-heat.js"></script>
 
 <script>
+    // 1. Setup Map
     const map = L.map('map', { zoomControl: false }).setView([51.92, 4.47], 12);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
@@ -36,44 +40,56 @@
         const msg = document.getElementById('msg');
         const count = document.getElementById('count');
 
-        // We use a simpler query: just search for devices in the Netherlands 
-        // then we filter for Rotterdam locally in the code.
+        // Fetching devices within 15km of Rotterdam center
         const url = 'https://api.smartcitizen.me/v0/devices?near=51.9225,4.4791&radius=15000';
 
         try {
             const response = await fetch(url);
-            
-            if (!response.ok) {
-                msg.innerText = "Error: API denied request (" + response.status + ")";
-                return;
-            }
-
             const data = await response.json();
             
-            if (data.length === 0) {
-                msg.innerText = "No sensors found in range.";
+            if (!data || data.length === 0) {
+                msg.innerText = "No sensors active in Rotterdam.";
                 return;
             }
 
             let heatPoints = [];
+
             data.forEach(d => {
                 if (d.latitude && d.longitude) {
-                    // Try to get PM value, otherwise use 10 as placeholder
-                    const pm = d.data.sensors.find(s => s.name.includes("PM2.5"))?.value || 10;
-                    heatPoints.push([d.latitude, d.longitude, Math.min(pm/40, 1)]);
+                    // Get PM2.5 value or use 5 as a safe baseline
+                    const pmSensor = d.data.sensors.find(s => s.name.includes("PM2.5"));
+                    const pmValue = pmSensor ? pmSensor.value : 5;
                     
+                    // Add to heatmap data array
+                    heatPoints.push([d.latitude, d.longitude, Math.min(pmValue / 40, 1)]);
+                    
+                    // Add a small circle for each sensor
                     L.circleMarker([d.latitude, d.longitude], {
-                        radius: 5, color: '#58a6ff'
-                    }).addTo(map).bindPopup(d.name + ": " + pm + " µg/m³");
+                        radius: 5,
+                        fillColor: "#58a6ff",
+                        color: "#fff",
+                        weight: 1,
+                        fillOpacity: 0.8
+                    }).addTo(map).bindPopup(`<b>${d.name}</b><br>PM2.5: ${pmValue.toFixed(1)}`);
                 }
             });
 
-            L.heatLayer(heatPoints, {radius: 35, blur: 20}).addTo(map);
+            // 2. FIXED: Only add HeatLayer if we actually have points
+            if (heatPoints.length > 0) {
+                const heatLayer = L.heatLayer(heatPoints, {
+                    radius: 35,
+                    blur: 15,
+                    max: 1.0,
+                    gradient: {0.4: 'blue', 0.6: 'cyan', 0.8: 'lime', 1.0: 'red'}
+                });
+                heatLayer.addTo(map);
+            }
+
             count.innerText = data.length;
-            msg.innerText = "Live Data Synced";
+            msg.innerText = "Live: Data Synced";
 
         } catch (e) {
-            msg.innerHTML = "<b style='color:red'>Fetch Failed</b><br><small>" + e.message + "</small>";
+            msg.innerHTML = "<b style='color:#f85149'>Error:</b> " + e.message;
         }
     }
 
