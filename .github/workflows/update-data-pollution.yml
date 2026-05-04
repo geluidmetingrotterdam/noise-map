@@ -7,25 +7,21 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # This block is the most common reason for Exit Code 3
     permissions:
       contents: write
-    
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Fetch SmartCitizen Data
         run: |
-          # Fetch the data
-          curl -f "https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam" > data.json
-          # Check if the file is empty (Exit code 3 prevention)
-          if [ ! -s data.json ]; then echo "API returned empty file"; exit 1; fi
+          # The single quotes are critical to stop the [ ] error
+          curl -L -f 'https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam' > data.json
+          if [ ! -s data.json ]; then echo "API error"; exit 1; fi
 
-      - name: Commit and Push Changes
+      - name: Commit and Push
         run: |
           git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add data.json
-          # Only commit if there are actually changes to the data
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Automated update: live sensor data" && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Live data sync" && git push)
