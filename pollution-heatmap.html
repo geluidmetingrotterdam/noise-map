@@ -1,26 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>Rotterdam Air Quality - Light Version</title>
+    <title>Rotterdam 5km Air Quality</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; background: #f4f4f9; color: #333; font-family: sans-serif; }
-        #map { height: 100vh; width: 100vw; background: #e0e0e0; }
-        #ui {
-            position: absolute; top: 20px; left: 20px; z-index: 9999;
-            background: white; padding: 15px; border: 1px solid #ccc;
-            border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        body { margin: 0; background: #f8f9fa; font-family: sans-serif; }
+        #map { height: 100vh; width: 100vw; }
+        #dashboard {
+            position: absolute; top: 15px; left: 15px; z-index: 1000;
+            background: white; padding: 20px; border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid #eee;
         }
-        .big { font-size: 32px; font-weight: bold; color: #d73a49; }
+        .count { font-size: 42px; font-weight: 800; color: #0052cc; line-height: 1; }
+        .label { font-size: 11px; color: #666; font-weight: bold; letter-spacing: 1px; }
     </style>
 </head>
 <body>
 
-<div id="ui">
-    <div style="font-size: 10px; color: #666; text-transform: uppercase;">Rotterdam Network</div>
-    <div id="count" class="big">--</div>
-    <div id="msg" style="font-size: 11px;">Loading Data...</div>
+<div id="dashboard">
+    <div class="label">ROTTERDAM (5KM RADIUS)</div>
+    <div id="count" class="count">--</div>
+    <div id="status" style="font-size: 12px; color: #999; margin-top: 5px;">Scanning local sensors...</div>
 </div>
 
 <div id="map"></div>
@@ -29,67 +30,61 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.0.1/leaflet-heat.js"></script>
 
 <script>
-    // 1. Setup Map with Light Tiles
-    const map = L.map('map', { zoomControl: true }).setView([51.922, 4.479], 12);
-
-    // Light Theme Tiles (CartoDB Positron)
+    // 1. Initial Map
+    const map = L.map('map', { zoomControl: false }).setView([51.922, 4.479], 13);
+    
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap, © CartoDB'
+        attribution: '© SmartCitizen'
     }).addTo(map);
 
-    async function loadData() {
+    async function syncData() {
         const countEl = document.getElementById('count');
-        const msgEl = document.getElementById('msg');
+        const statusEl = document.getElementById('status');
         
+        // 5000 meters = 5km radius around Rotterdam center
+        const api = "https://api.smartcitizen.me/v0/devices?near=51.9225,4.4791&radius=5000";
+
         try {
-            const response = await fetch('https://api.smartcitizen.me/v0/devices?near=51.9225,4.4791&radius=15000');
+            const response = await fetch(api);
             const devices = await response.json();
             
-            if (!devices || devices.length === 0) {
-                msgEl.innerText = "No sensors found.";
-                return;
-            }
-
             countEl.innerText = devices.length;
-            let points = [];
-            let bounds = L.latLngBounds();
 
-            devices.forEach(d => {
-                if (d.latitude && d.longitude) {
-                    // Create deep blue markers for the light map
-                    L.circleMarker([d.latitude, d.longitude], {
-                        radius: 6,
-                        fillColor: "#0052cc",
-                        color: "#fff",
-                        weight: 1.5,
-                        fillOpacity: 0.8
-                    }).addTo(map).bindPopup("<b>" + d.name + "</b>");
+            if (devices.length > 0) {
+                let heatPoints = [];
+                let bounds = L.latLngBounds();
 
-                    points.push([d.latitude, d.longitude, 0.8]);
-                    bounds.extend([d.latitude, d.longitude]);
-                }
-            });
+                devices.forEach(d => {
+                    if (d.latitude && d.longitude) {
+                        // Get PM2.5 or a default intensity
+                        const s = d.data.sensors.find(s => s.name.includes("PM2.5")) || { value: 10 };
+                        
+                        // Add marker
+                        L.circleMarker([d.latitude, d.longitude], {
+                            radius: 7, fillColor: "#0052cc", color: "#fff", weight: 2, fillOpacity: 0.9
+                        }).addTo(map).bindPopup(`<b>${d.name}</b><br>PM2.5: ${s.value}`);
 
-            // Heatmap with contrast for light background
-            if (points.length > 0) {
-                L.heatLayer(points, {
-                    radius: 30,
-                    blur: 15,
-                    max: 1.0,
-                    gradient: {0.4: 'blue', 0.6: 'purple', 1.0: 'red'}
-                }).addTo(map);
+                        heatPoints.push([d.latitude, d.longitude, 1.0]);
+                        bounds.extend([d.latitude, d.longitude]);
+                    }
+                });
+
+                // Add Heatmap
+                L.heatLayer(heatPoints, { radius: 35, blur: 15 }).addTo(map);
                 
-                // Automatically center and zoom to the sensors
-                map.fitBounds(bounds, { padding: [50, 50] });
-                msgEl.innerText = "Live Sensors Plotted";
+                // Zoom to fit the 5km area
+                map.fitBounds(bounds, { padding: [30, 30] });
+                statusEl.innerText = "Sync complete.";
+            } else {
+                statusEl.innerText = "No sensors in 5km range.";
             }
 
         } catch (err) {
-            msgEl.innerText = "Error: " + err.message;
+            statusEl.innerText = "Error fetching data.";
         }
     }
 
-    setTimeout(loadData, 500);
+    syncData();
 </script>
 </body>
 </html>
