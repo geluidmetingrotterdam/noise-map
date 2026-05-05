@@ -10,12 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # Note: v4 is fine; the warning is about the runner's internal Node version
 
       - name: Fetch SmartCitizen Data
         run: |
-          # The quotes around the URL are mandatory because of the [ ] characters
-          curl -L -v "https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam&key=fb8f6dbad06f36ca09493af47be1c32d75a60f56" > data.json
+          # Added -g to turn off globbing for [ ] and kept the URL in double quotes
+          curl -L -g "https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam&key=fb8f6dbad06f36ca09493af47be1c32d75a60f56" > data.json
           
       - name: Commit and Push if changed
         run: |
