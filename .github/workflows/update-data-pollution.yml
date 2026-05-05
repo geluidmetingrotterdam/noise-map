@@ -2,8 +2,8 @@ name: Update Rotterdam Pollution Data
 
 on:
   schedule:
-    - cron: '0 * * * *' # Runs every hour
-  workflow_dispatch: # Allows manual trigger
+    - cron: '0 * * * *'
+  workflow_dispatch: 
 
 jobs:
   build:
@@ -12,15 +12,13 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Fetch SmartCitizen Data via Coordinates
+      - name: Fetch SmartCitizen Data
         run: |
-          # Use -g to disable globbing for [ ] characters
-          # Coordinates cover the greater Rotterdam area
-          curl -L -g "https://api.smartcitizen.me/v0/devices?q[lat_gte]=51.85&q[lat_lte]=52.00&q[lng_gte]=4.30&q[lng_lte]=4.60&key=fb8f6dbad06f36ca09493af47be1c32d75a60f56" > data.json
+          curl -L -g "https://api.smartcitizen.me/v0/devices?near=51.9225,4.47917&radius=10000&key=fb8f6dbad06f36ca09493af47be1c32d75a60f56" > data.json
           
       - name: Commit and Push if changed
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
           git add data.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update Rotterdam coordinates sensor data" && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update Rotterdam sensor data via radius" && git push)
