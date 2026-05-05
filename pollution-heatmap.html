@@ -10,7 +10,7 @@
     <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
 
     <style>
-        body { margin:0; padding:0; background: #1a1a1a; color: white; font-family: sans-serif; }
+        body { margin:0; padding:0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; }
         #map { height: 100vh; width: 100vw; }
         #dashboard { 
             position: absolute; top: 20px; right: 20px; z-index: 1000; 
@@ -22,19 +22,15 @@
         h2 { margin: 0 0 5px 0; font-size: 16px; color: #ff4d4d; }
         #status { font-weight: bold; color: #00ff00; font-size: 12px; margin-bottom: 10px; }
         
-        /* Popup Styles */
         .status-badge {
-            padding: 2px 6px;
-            border-radius: 4px;
-            color: white;
-            font-weight: bold;
-            font-size: 11px;
-            float: right;
+            padding: 2px 6px; border-radius: 4px; color: white;
+            font-weight: bold; font-size: 11px; float: right;
         }
         .bg-safe { background: #28a745; }
         .bg-warning { background: #fd7e14; }
         .bg-danger { background: #dc3545; }
         .popup-row { margin-bottom: 8px; clear: both; height: 18px; line-height: 18px; }
+        .leaflet-heatmap-layer { opacity: 0.7; }
     </style>
 </head>
 <body>
@@ -50,10 +46,14 @@
 <div id="map"></div>
 
 <script>
-    const map = L.map('map').setView([51.9225, 4.47917], 13);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+    // Initialize Map
+    const map = L.map('map', { zoomControl: false }).setView([51.9225, 4.47917], 13);
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-    // Helper to get color badge based on value thresholds
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
     function getBadge(val, type) {
         let level = 'bg-safe';
         if (type === 'pm') {
@@ -95,11 +95,14 @@
                 if (device.location && device.location.latitude) {
                     heatData.push([device.location.latitude, device.location.longitude, intensity]);
 
+                    // STROKE: FALSE removes the white/black line around the circle
                     L.circleMarker([device.location.latitude, device.location.longitude], {
-                        radius: 7, color: '#fff', weight: 2, fillOpacity: 1,
+                        radius: 8, 
+                        stroke: false, 
+                        fillOpacity: 0.8,
                         fillColor: intensity > 0.6 ? '#ff0000' : intensity > 0.3 ? '#ffff00' : '#00ffff'
                     }).addTo(map).bindPopup(`
-                        <div style="color:#333; width:200px; font-family:sans-serif;">
+                        <div style="color:#333; width:210px; font-family:sans-serif;">
                             <b style="font-size:14px;">${device.name}</b><br><hr>
                             <div class="popup-row">PM1 (Ultra-fine) ${getBadge(pm1, 'pm')}</div>
                             <div class="popup-row">PM2.5 (Fine) ${getBadge(pm25, 'pm')}</div>
@@ -114,12 +117,15 @@
             });
 
             L.heatLayer(heatData, {
-                radius: 35, blur: 20, max: 1.0,
-                gradient: { 0.2: 'cyan', 0.5: 'lime', 0.8: 'yellow', 1.0: 'red' }
+                radius: 40, blur: 25, max: 1.0,
+                gradient: { 0.2: '#00ffff', 0.4: '#00ff00', 0.6: '#ffff00', 0.8: '#ff8000', 1.0: '#ff0000' }
             }).addTo(map);
 
             document.getElementById('status').innerText = `Live: ${heatData.length} Health Points`;
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            document.getElementById('status').innerText = "Data Error";
+            console.error(e); 
+        }
     }
     loadHeatmap();
 </script>
