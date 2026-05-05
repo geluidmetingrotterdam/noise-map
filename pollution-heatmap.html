@@ -5,8 +5,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
+    <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Leaflet Heatmap Plugin -->
     <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
 
     <style>
@@ -20,71 +23,83 @@
         .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-size: 12px; }
         .dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; }
         h2 { margin: 0 0 10px 0; font-size: 16px; color: #ff4d4d; }
+        #status { font-weight: bold; color: #00ff00; }
     </style>
 </head>
 <body>
 
 <div id="dashboard">
     <h2>Health Stress Index</h2>
-    <div id="status" style="font-size: 12px; margin-bottom: 10px;">Scanning Rotterdam API...</div>
+    <div id="status">Loading data...</div>
+    <hr style="border: 0; border-top: 1px solid #444; margin: 10px 0;">
     <div class="legend-item"><span class="dot" style="background: red;"></span> High Aggravation</div>
     <div class="legend-item"><span class="dot" style="background: yellow;"></span> Moderate Risk</div>
     <div class="legend-item"><span class="dot" style="background: cyan;"></span> Low Exposure</div>
+    <p style="font-size: 10px; color: #888; margin-top: 10px;">Data: SmartCitizen Rotterdam Network</p>
 </div>
 
 <div id="map"></div>
 
 <script>
-    const API_KEY = 'fb8f6dbad06f36ca09493af47be1c32d75a60f56';
+    // Initialize Map on Rotterdam
     const map = L.map('map').setView([51.9225, 4.47917], 13);
     
+    // Dark mode tiles
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap | Smart Citizen API'
+        attribution: '© OpenStreetMap'
     }).addTo(map);
 
     async function loadHeatmap() {
         try {
-            // Added the API Key to the search request
-            const response = await fetch(`https://api.smartcitizen.me/v0/devices?q[city_cont]=Rotterdam&key=${API_KEY}`);
+            // Fetch the file created by your GitHub Action
+            const response = await fetch('data.json');
             const devices = await response.json();
-            document.getElementById('status').innerText = `Analyzing ${devices.length} sensors...`;
-
+            
             let heatData = [];
 
-            // Loop through devices found in Rotterdam
-            for (let device of devices) {
-                try {
-                    // Fetch full detail for each device to get actual sensor values
-                    const detailRes = await fetch(`https://api.smartcitizen.me/v0/devices/${device.id}?key=${API_KEY}`);
-                    const detail = await detailRes.json();
-                    
-                    // The sensors are located in data.sensors
-                    const sensors = detail.data.sensors;
+            devices.forEach(device => {
+                // Ensure the device has sensor data
+                if (!device.data || !device.data.sensors) return;
 
-                    // Particle & Noise extraction logic
-                    const pm1 = sensors.find(s => s.name.includes("PM1 "))?.value || 0;
-                    const pm25 = sensors.find(s => s.name.includes("PM2.5"))?.value || 0;
-                    const pm10 = sensors.find(s => s.name.includes("PM10"))?.value || 0;
-                    const noise = sensors.find(s => s.name.includes("Noise"))?.value || 0;
+                const sensors = device.data.sensors;
 
-                    // Aggravation Formula: Weighting PM1 and Noise for Health Stress
-                    const pmTotal = (pm1 * 0.6) + (pm25 * 0.3) + (pm10 * 0.1);
-                    const intensity = (pmTotal / 35) + (noise / 70); 
+                // 1. Extract values based on the specific names in your JSON
+                const pm1 = sensors.find(s => s.name.includes("PM1"))?.value || 0;
+                const pm25 = sensors.find(s => s.name.includes("PM2.5"))?.value || 0;
+                const pm10 = sensors.find(s => s.name.includes("PM10"))?.value || 0;
+                const noise = sensors.find(s => s.name.includes("Noise"))?.value || 0;
 
-                    // Check for location coordinates
-                    const lat = detail.location.latitude;
-                    const lon = detail.location.longitude;
+                // 2. Health Stress Formula
+                // Weighted Pollution (PM1 is most dangerous) + Noise factor
+                const pmScore = (pm1 * 0.1) + (pm25 * 0.05) + (pm10 * 0.01);
+                const noiseScore = (noise > 45) ? (noise - 45) / 40 : 0; 
+                
+                const intensity = pmScore + noiseScore;
 
-                    if (lat && lon && intensity > 0) {
-                        heatData.push([lat, lon, intensity]);
-                    }
-                } catch (e) { 
-                    console.log("Skipping a sensor due to error");
-                    continue; 
+                // 3. Add to heatmap if coordinates exist
+                if (device.location && device.location.latitude) {
+                    heatData.push([
+                        device.location.latitude, 
+                        device.location.longitude, 
+                        intensity
+                    ]);
+
+                    // Optional: Add a small circle for every actual sensor location
+                    L.circleMarker([device.location.latitude, device.location.longitude], {
+                        radius: 4,
+                        color: '#444',
+                        fillColor: '#00ff00',
+                        fillOpacity: 0.6
+                    }).addTo(map).bindPopup(`
+                        <b>${device.name}</b><br>
+                        Noise: ${noise} dBA<br>
+                        PM2.5: ${pm25} ug/m3<br>
+                        Stress Index: ${intensity.toFixed(2)}
+                    `);
                 }
-            }
+            });
 
-            // Create Heat Layer
+            // 4. Create the Heat Layer
             L.heatLayer(heatData, {
                 radius: 40,
                 blur: 25,
@@ -92,11 +107,11 @@
                 gradient: {0.2: 'blue', 0.4: 'cyan', 0.6: 'lime', 0.8: 'yellow', 1: 'red'}
             }).addTo(map);
 
-            document.getElementById('status').innerText = `Live: ${heatData.length} data points mapped`;
+            document.getElementById('status').innerText = `Live: ${heatData.length} sensors active`;
 
         } catch (error) {
-            document.getElementById('status').innerText = "API connection error.";
-            console.error(error);
+            document.getElementById('status').innerText = "Error loading data.json";
+            console.error("Mapping Error:", error);
         }
     }
 
