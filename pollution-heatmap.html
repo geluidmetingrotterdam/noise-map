@@ -5,11 +5,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <!-- Leaflet Heatmap Plugin -->
     <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
 
     <style>
@@ -24,9 +21,20 @@
         .dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; }
         h2 { margin: 0 0 5px 0; font-size: 16px; color: #ff4d4d; }
         #status { font-weight: bold; color: #00ff00; font-size: 12px; margin-bottom: 10px; }
-        .formula-note { font-size: 10px; color: #aaa; margin-top: 10px; line-height: 1.3; }
-        /* Prevent the heatmap from feeling like a neon glow */
-        .leaflet-heatmap-layer { opacity: 0.8; }
+        
+        /* Popup Styles */
+        .status-badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            font-size: 11px;
+            float: right;
+        }
+        .bg-safe { background: #28a745; }
+        .bg-warning { background: #fd7e14; }
+        .bg-danger { background: #dc3545; }
+        .popup-row { margin-bottom: 8px; clear: both; height: 18px; line-height: 18px; }
     </style>
 </head>
 <body>
@@ -34,43 +42,89 @@
 <div id="dashboard">
     <h2>Health Stress Index</h2>
     <div id="status">Syncing Live Sensors...</div>
-    
     <div class="legend-item"><span class="dot" style="background: #ff0000;"></span> High Aggravation</div>
     <div class="legend-item"><span class="dot" style="background: #ffff00;"></span> Moderate Risk</div>
     <div class="legend-item"><span class="dot" style="background: #00ffff;"></span> Low Exposure</div>
-
-    <div class="formula-note">
-        <b>Data Logic:</b><br>
-        Combined impact of PM1, PM2.5, PM10, Noise (dBA), and Ambient Temperature.
-    </div>
 </div>
 
 <div id="map"></div>
 
 <script>
     const map = L.map('map').setView([51.9225, 4.47917], 13);
-    
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap | SmartCitizen'
-    }).addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+    // Helper to get color badge based on value thresholds
+    function getBadge(val, type) {
+        let level = 'bg-safe';
+        if (type === 'pm') {
+            if (val > 15) level = 'bg-danger';
+            else if (val > 8) level = 'bg-warning';
+        } else if (type === 'noise') {
+            if (val > 70) level = 'bg-danger';
+            else if (val > 55) level = 'bg-warning';
+        } else if (type === 'temp') {
+            if (val > 30) level = 'bg-danger';
+            else if (val > 26) level = 'bg-warning';
+        }
+        return `<span class="status-badge ${level}">${val}</span>`;
+    }
 
     async function loadHeatmap() {
         try {
             const response = await fetch('data.json');
             const devices = await response.json();
-            
             let heatData = [];
 
             devices.forEach(device => {
                 if (!device.data || !device.data.sensors) return;
+                const s = device.data.sensors;
 
-                const sensors = device.data.sensors;
+                const pm1 = s.find(i => i.name.includes("PM1 "))?.value || 0;
+                const pm25 = s.find(i => i.name.includes("PM2.5"))?.value || 0;
+                const pm10 = s.find(i => i.name.includes("PM10"))?.value || 0;
+                const noise = s.find(i => i.name.includes("Noise"))?.value || 0;
+                const temp = s.find(i => i.name.includes("Temperature"))?.value || 20;
 
-                // 1. Data Extraction
-                const pm1 = sensors.find(s => s.name.includes("PM1 "))?.value || 0;
-                const pm25 = sensors.find(s => s.name.includes("PM2.5"))?.value || 0;
-                const pm10 = sensors.find(s => s.name.includes("PM10"))?.value || 0;
-                const noise = sensors.find(s => s.name.includes("Noise"))?.value || 0;
+                const pollutionScore = (pm1 * 0.6) + (pm25 * 0.3) + (pm10 * 0.1);
+                const noiseScore = (noise > 52) ? (noise - 52) / 25 : 0;
+                const heatFactor = (temp > 25) ? (temp - 25) * 0.08 : 0;
+
+                let intensity = (pollutionScore / 25) + noiseScore + heatFactor;
+                if (intensity > 1.0) intensity = 1.0;
+
+                if (device.location && device.location.latitude) {
+                    heatData.push([device.location.latitude, device.location.longitude, intensity]);
+
+                    L.circleMarker([device.location.latitude, device.location.longitude], {
+                        radius: 7, color: '#fff', weight: 2, fillOpacity: 1,
+                        fillColor: intensity > 0.6 ? '#ff0000' : intensity > 0.3 ? '#ffff00' : '#00ffff'
+                    }).addTo(map).bindPopup(`
+                        <div style="color:#333; width:200px; font-family:sans-serif;">
+                            <b style="font-size:14px;">${device.name}</b><br><hr>
+                            <div class="popup-row">PM1 (Ultra-fine) ${getBadge(pm1, 'pm')}</div>
+                            <div class="popup-row">PM2.5 (Fine) ${getBadge(pm25, 'pm')}</div>
+                            <div class="popup-row">PM10 (Dust) ${getBadge(pm10, 'pm')}</div>
+                            <div class="popup-row">Noise Level ${getBadge(noise, 'noise')}</div>
+                            <div class="popup-row">Temperature ${getBadge(temp, 'temp')}</div>
+                            <hr>
+                            <b>Total Stress Index: ${intensity.toFixed(2)}</b>
+                        </div>
+                    `);
+                }
+            });
+
+            L.heatLayer(heatData, {
+                radius: 35, blur: 20, max: 1.0,
+                gradient: { 0.2: 'cyan', 0.5: 'lime', 0.8: 'yellow', 1.0: 'red' }
+            }).addTo(map);
+
+            document.getElementById('status').innerText = `Live: ${heatData.length} Health Points`;
+        } catch (e) { console.error(e); }
+    }
+    loadHeatmap();
+</script>
+</body>
+</html>                const noise = sensors.find(s => s.name.includes("Noise"))?.value || 0;
                 const temp = sensors.find(s => s.name.includes("Temperature"))?.value || 20;
 
                 // 2. Multi-Factor Intensity Formula
