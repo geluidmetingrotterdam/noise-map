@@ -17,60 +17,128 @@
         #map { height: 100vh; width: 100vw; }
         #dashboard { 
             position: absolute; top: 20px; right: 20px; z-index: 1000; 
-            background: rgba(30, 30, 30, 0.9); padding: 15px; border-radius: 8px; 
-            border: 1px solid #444; width: 220px;
+            background: rgba(25, 25, 25, 0.95); padding: 15px; border-radius: 8px; 
+            border: 1px solid #444; width: 240px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
         .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-size: 12px; }
         .dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; }
-        h2 { margin: 0 0 10px 0; font-size: 16px; color: #ff4d4d; }
-        #status { font-weight: bold; color: #00ff00; }
+        h2 { margin: 0 0 5px 0; font-size: 16px; color: #ff4d4d; }
+        #status { font-weight: bold; color: #00ff00; font-size: 12px; margin-bottom: 10px; }
+        .formula-note { font-size: 10px; color: #aaa; margin-top: 10px; line-height: 1.3; }
+        /* Prevent the heatmap from feeling like a neon glow */
+        .leaflet-heatmap-layer { opacity: 0.8; }
     </style>
 </head>
 <body>
 
 <div id="dashboard">
     <h2>Health Stress Index</h2>
-    <div id="status">Loading data...</div>
-    <hr style="border: 0; border-top: 1px solid #444; margin: 10px 0;">
-    <div class="legend-item"><span class="dot" style="background: red;"></span> High Aggravation</div>
-    <div class="legend-item"><span class="dot" style="background: yellow;"></span> Moderate Risk</div>
-    <div class="legend-item"><span class="dot" style="background: cyan;"></span> Low Exposure</div>
-    <p style="font-size: 10px; color: #888; margin-top: 10px;">Data: SmartCitizen Rotterdam Network</p>
+    <div id="status">Syncing Live Sensors...</div>
+    
+    <div class="legend-item"><span class="dot" style="background: #ff0000;"></span> High Aggravation</div>
+    <div class="legend-item"><span class="dot" style="background: #ffff00;"></span> Moderate Risk</div>
+    <div class="legend-item"><span class="dot" style="background: #00ffff;"></span> Low Exposure</div>
+
+    <div class="formula-note">
+        <b>Data Logic:</b><br>
+        Combined impact of PM1, PM2.5, PM10, Noise (dBA), and Ambient Temperature.
+    </div>
 </div>
 
 <div id="map"></div>
 
 <script>
-    // Initialize Map on Rotterdam
     const map = L.map('map').setView([51.9225, 4.47917], 13);
     
-    // Dark mode tiles
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap'
+        attribution: '© OpenStreetMap | SmartCitizen'
     }).addTo(map);
 
     async function loadHeatmap() {
         try {
-            // Fetch the file created by your GitHub Action
             const response = await fetch('data.json');
             const devices = await response.json();
             
             let heatData = [];
 
             devices.forEach(device => {
-                // Ensure the device has sensor data
                 if (!device.data || !device.data.sensors) return;
 
                 const sensors = device.data.sensors;
 
-                // 1. Extract values based on the specific names in your JSON
-                const pm1 = sensors.find(s => s.name.includes("PM1"))?.value || 0;
+                // 1. Data Extraction
+                const pm1 = sensors.find(s => s.name.includes("PM1 "))?.value || 0;
                 const pm25 = sensors.find(s => s.name.includes("PM2.5"))?.value || 0;
                 const pm10 = sensors.find(s => s.name.includes("PM10"))?.value || 0;
                 const noise = sensors.find(s => s.name.includes("Noise"))?.value || 0;
+                const temp = sensors.find(s => s.name.includes("Temperature"))?.value || 20;
 
-                // 2. Health Stress Formula
-                // Weighted Pollution (PM1 is most dangerous) + Noise factor
+                // 2. Multi-Factor Intensity Formula
+                const pollutionScore = (pm1 * 0.6) + (pm25 * 0.3) + (pm10 * 0.1);
+                const noiseScore = (noise > 52) ? (noise - 52) / 25 : 0; // Starts stressing at 52dBA
+                const heatFactor = (temp > 25) ? (temp - 25) * 0.08 : 0;
+
+                // Normalized Intensity
+                let intensity = (pollutionScore / 25) + noiseScore + heatFactor;
+                
+                // Cap intensity at 1.0 for heatmap rendering purposes
+                if (intensity > 1.0) intensity = 1.0;
+
+                if (device.location && device.location.latitude) {
+                    heatData.push([
+                        device.location.latitude, 
+                        device.location.longitude, 
+                        intensity
+                    ]);
+
+                    // Add small reference points for actual sensor locations
+                    L.circleMarker([device.location.latitude, device.location.longitude], {
+                        radius: 4,
+                        color: '#222',
+                        weight: 1,
+                        fillColor: intensity > 0.6 ? '#ff0000' : intensity > 0.3 ? '#ffff00' : '#00ffff',
+                        fillOpacity: 0.9
+                    }).addTo(map).bindPopup(`
+                        <div style="color:#333; font-size:12px;">
+                            <b>Sensor: ${device.name}</b><br><hr>
+                            PM1: ${pm1} µg/m³<br>
+                            Noise: ${noise} dBA<br>
+                            Temp: ${temp}°C<br>
+                            <b>Aggravated Index: ${intensity.toFixed(2)}</b>
+                        </div>
+                    `);
+                }
+            });
+
+            // 3. BALANCED HEATMAP LAYER
+            // We use 'max' to prevent clustering from artificially inflating the color
+            L.heatLayer(heatData, {
+                radius: 30,         // Smaller radius reduces deceptive "blooming"
+                blur: 20,
+                max: 1.0,           // Important: sets the scale for intensity
+                minOpacity: 0.2,
+                gradient: {
+                    0.2: '#00ffff', // Very Low: Cyan
+                    0.4: '#00ff00', // Low: Green
+                    0.6: '#ffff00', // Moderate: Yellow
+                    0.8: '#ff8000', // High: Orange
+                    1.0: '#ff0000'  // Extreme: Red
+                }
+            }).addTo(map);
+
+            document.getElementById('status').innerText = `Live: ${heatData.length} Health Points`;
+
+        } catch (error) {
+            document.getElementById('status').innerText = "Sync Error.";
+            console.error(error);
+        }
+    }
+
+    loadHeatmap();
+</script>
+</body>
+</html>
+// Weighted Pollution (PM1 is most dangerous) + Noise factor
                 const pmScore = (pm1 * 0.1) + (pm25 * 0.05) + (pm10 * 0.01);
                 const noiseScore = (noise > 45) ? (noise - 45) / 40 : 0; 
                 
