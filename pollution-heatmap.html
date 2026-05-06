@@ -4,7 +4,6 @@
     <title>Rotterdam Aggravated Health Map</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
@@ -14,30 +13,27 @@
         #map { height: 100vh; width: 100vw; }
         #dashboard { 
             position: absolute; top: 20px; right: 20px; z-index: 1000; 
-            background: rgba(25, 25, 25, 0.95); padding: 15px; border-radius: 8px; 
-            border: 1px solid #444; width: 240px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            background: rgba(20, 20, 20, 0.9); padding: 15px; border-radius: 12px; 
+            border: 1px solid #333; width: 250px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
+        path.leaflet-interactive { stroke: none !important; stroke-width: 0 !important; }
         .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-size: 12px; }
         .dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; }
-        h2 { margin: 0 0 5px 0; font-size: 16px; color: #ff4d4d; }
-        #status { font-weight: bold; color: #00ff00; font-size: 12px; margin-bottom: 10px; }
-        
-        .status-badge {
-            padding: 2px 6px; border-radius: 4px; color: white;
-            font-weight: bold; font-size: 11px; float: right;
-        }
+        h2 { margin: 0 0 5px 0; font-size: 16px; color: #ff4d4d; letter-spacing: 1px; }
+        #status { font-weight: bold; color: #00ff00; font-size: 11px; margin-bottom: 10px; text-transform: uppercase; }
+        .status-badge { padding: 2px 6px; border-radius: 4px; color: white; font-weight: bold; font-size: 11px; float: right; }
         .bg-safe { background: #28a745; }
         .bg-warning { background: #fd7e14; }
         .bg-danger { background: #dc3545; }
-        .popup-row { margin-bottom: 8px; clear: both; height: 18px; line-height: 18px; }
+        .popup-row { margin-bottom: 8px; clear: both; height: 18px; line-height: 18px; border-bottom: 1px solid #333; padding-bottom: 2px; color: #333; }
         .leaflet-heatmap-layer { opacity: 0.7; }
     </style>
 </head>
 <body>
 
 <div id="dashboard">
-    <h2>Health Stress Index</h2>
-    <div id="status">Syncing Live Sensors...</div>
+    <h2>HEALTH STRESS</h2>
+    <div id="status">Syncing Data...</div>
     <div class="legend-item"><span class="dot" style="background: #ff0000;"></span> High Aggravation</div>
     <div class="legend-item"><span class="dot" style="background: #ffff00;"></span> Moderate Risk</div>
     <div class="legend-item"><span class="dot" style="background: #00ffff;"></span> Low Exposure</div>
@@ -46,32 +42,22 @@
 <div id="map"></div>
 
 <script>
-    // Initialize Map
     const map = L.map('map', { zoomControl: false }).setView([51.9225, 4.47917], 13);
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
-
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
     function getBadge(val, type) {
         let level = 'bg-safe';
-        if (type === 'pm') {
-            if (val > 15) level = 'bg-danger';
-            else if (val > 8) level = 'bg-warning';
-        } else if (type === 'noise') {
-            if (val > 70) level = 'bg-danger';
-            else if (val > 55) level = 'bg-warning';
-        } else if (type === 'temp') {
-            if (val > 30) level = 'bg-danger';
-            else if (val > 26) level = 'bg-warning';
-        }
+        if (type === 'pm') { if (val > 15) level = 'bg-danger'; else if (val > 8) level = 'bg-warning'; }
+        else if (type === 'noise') { if (val > 70) level = 'bg-danger'; else if (val > 55) level = 'bg-warning'; }
+        else if (type === 'temp') { if (val > 30) level = 'bg-danger'; else if (val > 26) level = 'bg-warning'; }
+        else if (type === 'hum') { if (val > 80 || val < 30) level = 'bg-warning'; }
         return `<span class="status-badge ${level}">${val}</span>`;
     }
 
     async function loadHeatmap() {
         try {
-            const response = await fetch('data.json');
+            const response = await fetch('data.json?v=' + new Date().getTime());
             const devices = await response.json();
             let heatData = [];
 
@@ -84,48 +70,45 @@
                 const pm10 = s.find(i => i.name.includes("PM10"))?.value || 0;
                 const noise = s.find(i => i.name.includes("Noise"))?.value || 0;
                 const temp = s.find(i => i.name.includes("Temperature"))?.value || 20;
+                const hum = s.find(i => i.name.includes("Humidity"))?.value || 50;
 
+                // Health Stress Calculation
                 const pollutionScore = (pm1 * 0.6) + (pm25 * 0.3) + (pm10 * 0.1);
                 const noiseScore = (noise > 52) ? (noise - 52) / 25 : 0;
-                const heatFactor = (temp > 25) ? (temp - 25) * 0.08 : 0;
+                const climateFactor = (temp > 26 ? (temp-26)*0.1 : 0) + (hum > 80 ? 0.1 : 0);
 
-                let intensity = (pollutionScore / 25) + noiseScore + heatFactor;
-                if (intensity > 1.0) intensity = 1.0;
+                let intensity = (pollutionScore / 25) + noiseScore + climateFactor;
+                const mapIntensity = Math.max(intensity, 0.15);
 
                 if (device.location && device.location.latitude) {
-                    heatData.push([device.location.latitude, device.location.longitude, intensity]);
+                    heatData.push([device.location.latitude, device.location.longitude, mapIntensity]);
 
-                    // STROKE: FALSE removes the white/black line around the circle
                     L.circleMarker([device.location.latitude, device.location.longitude], {
-                        radius: 8, 
-                        stroke: false, 
-                        fillOpacity: 0.8,
+                        radius: 8, stroke: false, fillOpacity: 0.9,
                         fillColor: intensity > 0.6 ? '#ff0000' : intensity > 0.3 ? '#ffff00' : '#00ffff'
                     }).addTo(map).bindPopup(`
-                        <div style="color:#333; width:210px; font-family:sans-serif;">
-                            <b style="font-size:14px;">${device.name}</b><br><hr>
+                        <div style="color:#333; width:220px; font-family:sans-serif;">
+                            <b style="font-size:14px;">${device.name}</b><br>
+                            <small>Updated: ${new Date(device.last_reading_at).toLocaleTimeString()}</small><hr>
                             <div class="popup-row">PM1 (Ultra-fine) ${getBadge(pm1, 'pm')}</div>
                             <div class="popup-row">PM2.5 (Fine) ${getBadge(pm25, 'pm')}</div>
-                            <div class="popup-row">PM10 (Dust) ${getBadge(pm10, 'pm')}</div>
                             <div class="popup-row">Noise Level ${getBadge(noise, 'noise')}</div>
                             <div class="popup-row">Temperature ${getBadge(temp, 'temp')}</div>
+                            <div class="popup-row">Humidity % ${getBadge(hum, 'hum')}</div>
                             <hr>
-                            <b>Total Stress Index: ${intensity.toFixed(2)}</b>
+                            <b>Aggravated Index: ${intensity.toFixed(2)}</b>
                         </div>
                     `);
                 }
             });
 
             L.heatLayer(heatData, {
-                radius: 40, blur: 25, max: 1.0,
-                gradient: { 0.2: '#00ffff', 0.4: '#00ff00', 0.6: '#ffff00', 0.8: '#ff8000', 1.0: '#ff0000' }
+                radius: 50, blur: 35, max: 1.0, minOpacity: 0.4,
+                gradient: { 0.2: '#00ffff', 0.5: '#00ff00', 0.8: '#ffff00', 1.0: '#ff0000' }
             }).addTo(map);
 
             document.getElementById('status').innerText = `Live: ${heatData.length} Health Points`;
-        } catch (e) { 
-            document.getElementById('status').innerText = "Data Error";
-            console.error(e); 
-        }
+        } catch (e) { console.error(e); }
     }
     loadHeatmap();
 </script>
