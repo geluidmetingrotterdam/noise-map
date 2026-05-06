@@ -8,17 +8,22 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Fetch SmartCitizen Data
         run: |
-          curl -L -g "https://api.smartcitizen.me/v0/devices?near=51.9225,4.47917&radius=5000&key=fb8f6dbad06f36ca09493af47be1c32d75a60f56" > data.json
+          # The $(date +%s) ensures the API sends the absolute latest version
+          curl -L -g "https://api.smartcitizen.me/v0/devices?near=51.9225,4.47917&radius=5000&key=fb8f6dbad06f36ca09493af47be1c32d75a60f56&_=$(date +%s)" > data.json
           
-      - name: Commit and Push if changed
+      - name: Commit and Push
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
           git add data.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update Rotterdam sensor data via radius" && git push)
+          # Forces a commit even if data is nearly identical
+          git commit -m "Live Update: $(date)" || echo "No changes to commit"
+          git push
