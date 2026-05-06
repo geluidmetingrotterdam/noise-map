@@ -14,7 +14,7 @@ jobs:
 
       - name: Fetch SmartCitizen Data
         run: |
-          curl -L -g "https://api.smartcitizen.me/v0/devices?near=51.9225,4.47917&radius=10000&key=fb8f6dbad06f36ca09493af47be1c32d75a60f56" > data.json
+          curl -L -g "https://api.smartcitizen.me/v0/devices?near=51.9225,4.47917&radius=5000&key=fb8f6dbad06f36ca09493af47be1c32d75a60f56" > data.json
           
       - name: Commit and Push if changed
         run: |
