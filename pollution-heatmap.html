@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Rotterdam Health Stress Map</title>
+    <title>Rotterdam Health & Environmental Map</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -21,11 +21,14 @@
         .dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; }
         h2 { margin: 0 0 5px 0; font-size: 16px; color: #ff4d4d; text-transform: uppercase; }
         #status { font-weight: bold; color: #00ff00; font-size: 11px; margin-bottom: 10px; }
+        
+        /* Popup Styling */
         .status-badge { padding: 2px 6px; border-radius: 4px; color: white; font-weight: bold; font-size: 11px; float: right; }
         .bg-safe { background: #28a745; }
         .bg-warning { background: #fd7e14; }
         .bg-danger { background: #dc3545; }
-        .popup-row { margin-bottom: 6px; clear: both; height: 18px; line-height: 18px; border-bottom: 1px solid #eee; color: #333; }
+        .bg-info { background: #17a2b8; }
+        .popup-row { margin-bottom: 6px; clear: both; height: 18px; line-height: 18px; border-bottom: 1px solid #eee; color: #333; font-size: 12px; }
         .offline-label { color: #888; font-size: 10px; font-weight: bold; text-transform: uppercase; }
         .online-label { color: #28a745; font-size: 10px; font-weight: bold; text-transform: uppercase; }
     </style>
@@ -51,7 +54,9 @@
         let level = 'bg-safe';
         if (type === 'pm') { if (val > 15) level = 'bg-danger'; else if (val > 8) level = 'bg-warning'; }
         else if (type === 'noise') { if (val > 70) level = 'bg-danger'; else if (val > 55) level = 'bg-warning'; }
+        else if (type === 'temp') { if (val > 30) level = 'bg-danger'; else if (val > 26) level = 'bg-warning'; }
         else if (type === 'hum') { if (val > 80 || val < 30) level = 'bg-warning'; }
+        else if (type === 'uv') { level = 'bg-info'; } // UV is just info for now
         return `<span class="status-badge ${level}">${val}</span>`;
     }
 
@@ -66,13 +71,18 @@
                 const s = device.data.sensors;
                 const isOnline = device.state === "has_published";
 
+                // DATA EXTRACTION (ALL SENSORS)
                 const pm1 = s.find(i => i.name.includes("PM1 "))?.value || 0;
                 const pm25 = s.find(i => i.name.includes("PM2.5"))?.value || 0;
+                const pm10 = s.find(i => i.name.includes("PM10"))?.value || 0;
                 const noise = s.find(i => i.name.includes("Noise"))?.value || 0;
-                const temp = s.find(i => i.name.includes("Temperature"))?.value || 20;
-                const hum = s.find(i => i.name.includes("Humidity"))?.value || 50;
+                const temp = s.find(i => i.name.includes("Temperature"))?.value || 0;
+                const hum = s.find(i => i.name.includes("Humidity"))?.value || 0;
+                const uva = s.find(i => i.name.includes("UVA"))?.value || 0;
+                const uvb = s.find(i => i.name.includes("UVB"))?.value || 0;
 
-                const pollutionScore = (pm1 * 0.6) + (pm25 * 0.4);
+                // FORMULA
+                const pollutionScore = (pm1 * 0.6) + (pm25 * 0.3) + (pm10 * 0.1);
                 const noiseScore = (noise > 52) ? (noise - 52) / 25 : 0;
                 const climateFactor = (temp > 26 ? (temp-26)*0.1 : 0) + (hum > 80 ? 0.1 : 0);
 
@@ -86,19 +96,21 @@
                     heatData.push([device.location.latitude, device.location.longitude, Math.max(intensity, 0.2)]);
 
                     L.circleMarker([device.location.latitude, device.location.longitude], {
-                        radius: 8, 
-                        stroke: false, 
-                        fillOpacity: isOnline ? 0.9 : 0.3, // Fade offline sensors
+                        radius: 8, stroke: false, fillOpacity: isOnline ? 0.9 : 0.3,
                         fillColor: intensity > 0.6 ? '#ff0000' : intensity > 0.3 ? '#ffff00' : '#00ffff'
                     }).addTo(map).bindPopup(`
-                        <div style="color:#333; width:220px;">
+                        <div style="color:#333; width:230px;">
                             <b style="font-size:14px;">${device.name}</b><br>
                             <span class="${isOnline ? 'online-label' : 'offline-label'}">${isOnline ? '● Online' : '○ Offline'}</span><br>
                             <small><b>Datum:</b> ${dateString}</small><hr>
                             <div class="popup-row">PM1 (Ultra-fine) ${getBadge(pm1, 'pm')}</div>
                             <div class="popup-row">PM2.5 (Fine) ${getBadge(pm25, 'pm')}</div>
-                            <div class="popup-row">Noise Level ${getBadge(noise, 'noise')}</div>
-                            <div class="popup-row">Humidity % ${getBadge(hum, 'hum')}</div>
+                            <div class="popup-row">PM10 (Dust) ${getBadge(pm10, 'pm')}</div>
+                            <div class="popup-row">Noise Level (dBA) ${getBadge(noise, 'noise')}</div>
+                            <div class="popup-row">Temperature (°C) ${getBadge(temp.toFixed(1), 'temp')}</div>
+                            <div class="popup-row">Humidity (%) ${getBadge(hum.toFixed(0), 'hum')}</div>
+                            <div class="popup-row">UVA Light ${getBadge(uva.toFixed(1), 'uv')}</div>
+                            <div class="popup-row">UVB Light ${getBadge(uvb.toFixed(1), 'uv')}</div>
                             <hr>
                             <b>Aggravated Index: ${intensity.toFixed(2)}</b>
                         </div>
@@ -111,8 +123,8 @@
                 gradient: { 0.2: '#00ffff', 0.5: '#00ff00', 0.8: '#ffff00', 1.0: '#ff0000' }
             }).addTo(map);
 
-            document.getElementById('status').innerText = `Live: ${heatData.length} Points`;
-        } catch (e) { console.error(e); }
+            document.getElementById('status').innerText = `Displaying ${heatData.length} sensors`;
+        } catch (e) { console.error("Map Error:", e); }
     }
     loadHeatmap();
 </script>
