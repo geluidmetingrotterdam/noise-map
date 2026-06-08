@@ -38,7 +38,6 @@
 
         h1 { margin: 0; color: var(--accent-color); }
 
-        /* Summary Cards */
         .summary-cards {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -59,7 +58,6 @@
         .card.online .value { color: var(--online-color); }
         .card.offline .value { color: var(--offline-color); }
 
-        /* Controls / Filtering */
         .controls {
             display: flex;
             gap: 15px;
@@ -70,6 +68,210 @@
         .btn {
             padding: 10px 20px;
             border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            background-color: #ddd;
+            transition: background 0.2s;
+        }
+
+        .btn.active, .btn:hover { background-color: var(--accent-color); color: white; }
+        .btn-offline.active { background-color: var(--offline-color); color: white; }
+
+        .table-container {
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td { padding: 15px; border-bottom: 1px solid #eee; }
+        th { background-color: #f8f9fa; color: #555; }
+
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-badge.online { background-color: #d1f7ec; color: #0f785c; }
+        .status-badge.offline { background-color: #fcd5d9; color: #b71c1c; }
+
+        .actions a {
+            color: #0077cc;
+            text-decoration: none;
+            font-weight: 500;
+            margin-right: 15px;
+        }
+        .actions a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div>
+            <h1>Noise Sensor Dashboard</h1>
+            <p>Rotterdam Centrum Monitoring</p>
+        </div>
+        <a href="https://geluidmetingrotterdam.github.io/noise-map/" target="_blank" style="text-decoration: none; font-weight: bold; color: #0077cc;">← Back to Map</a>
+    </header>
+
+    <div class="summary-cards">
+        <div class="card">
+            <h3>Rotterdam Sensors</h3>
+            <div class="value" id="total-count">0</div>
+        </div>
+        <div class="card online">
+            <h3>Online</h3>
+            <div class="value" id="online-count">0</div>
+        </div>
+        <div class="card offline">
+            <h3>Offline</h3>
+            <div class="value" id="offline-count">0</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn active" id="btn-all" onclick="filterSensors('all')">Show All</button>
+        <button class="btn btn-offline" id="btn-offline" onclick="filterSensors('offline')">Show Offline Only 🚨</button>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Sensor ID</th>
+                    <th>Latest Value</th>
+                    <th>Status</th>
+                    <th>Last Active (Local Time)</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="sensor-table-body">
+                <tr><td colspan="5" style="text-align:center;">Syncing with Rotterdam sensor array data feed...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let globalSensorsData = []; 
+    let currentFilter = 'all';
+
+    function renderDashboard(sensors) {
+        const tableBody = document.getElementById('sensor-table-body');
+        document.getElementById('total-count').innerText = sensors.length;
+        document.getElementById('online-count').innerText = sensors.filter(s => s.isOnline).length;
+        document.getElementById('offline-count').innerText = sensors.filter(s => !s.isOnline).length;
+
+        const filteredSensors = sensors.filter(s => currentFilter === 'offline' ? !s.isOnline : true);
+
+        if(filteredSensors.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">No sensors found matching this filter.</td></tr>`;
+            return;
+        }
+
+        tableBody.innerHTML = filteredSensors.map(sensor => `
+            <tr>
+                <td><strong>#${sensor.id}</strong></td>
+                <td><strong>${sensor.dB} dB</strong></td>
+                <td>
+                    <span class="status-badge ${sensor.isOnline ? 'online' : 'offline'}">
+                        ${sensor.isOnline ? 'Online' : 'Offline'}
+                    </span>
+                </td>
+                <td>${sensor.lastSeen}</td>
+                <td class="actions">
+                    <a href="https://api-rrd.madavi.de:3000/grafana/d-solo/000000004/single-sensor-view?orgId=1&panelId=12&var-node=${sensor.id}" target="_blank">📊 Historical Chart</a>
+                    <a href="https://maps.google.com/?q=${sensor.lat},${sensor.lon}" target="_blank">📍 View Position</a>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function filterSensors(filterType) {
+        currentFilter = filterType;
+        document.getElementById('btn-all').classList.toggle('active', filterType === 'all');
+        document.getElementById('btn-offline').classList.toggle('active', filterType === 'offline');
+        renderDashboard(globalSensorsData);
+    }
+
+    function fetchRotterdamData() {
+        fetch('https://data.sensor.community/static/v2/data.json')
+            .then(res => res.json())
+            .then(data => {
+                const tempMap = new Map();
+                const now = new Date(); // Current local time on your device
+
+                data.forEach(entry => {
+                    const lat = entry.location.latitude;
+                    const lon = entry.location.longitude;
+
+                    if (lat > 51.89 && lat < 51.93 && lon > 4.44 && lon < 4.55) {
+                        const noiseVal = entry.sensordatavalues.find(val =>
+                            val.value_type.toLowerCase().includes("noise") || 
+                            val.value_type.toLowerCase().includes("spl")
+                        );
+
+                        if (noiseVal) {
+                            const sensorId = (entry.sensor.sensor_id || entry.sensor.id).toString();
+                            const dB = parseFloat(noiseVal.value).toFixed(1);
+                            
+                            // 1. Force the timestamp text to be parsed as UTC by adding 'Z'
+                            const timestampStr = entry.timestamp.replace(' ', 'T') + 'Z';
+                            const lastSeenTime = new Date(timestampStr);
+                            
+                            // 2. Both variables are now proper JavaScript date objects, making comparison easy
+                            const timeDiffMinutes = (now - lastSeenTime) / (1000 * 60);
+                            const isOnline = timeDiffMinutes < 25; // Online if updated in the last 25 minutes
+
+                            // 3. Convert it to local Dutch time format so it reads easily on screen
+                            const localTimeDisplay = lastSeenTime.toLocaleString();
+
+                            if (!tempMap.has(sensorId) || new Date(tempMap.get(sensorId).rawTime) < lastSeenTime) {
+                                tempMap.set(sensorId, {
+                                    id: sensorId,
+                                    dB: dB,
+                                    lat: lat,
+                                    lon: lon,
+                                    lastSeen: localTimeDisplay, 
+                                    rawTime: timestampStr,
+                                    isOnline: isOnline
+                                });
+                            }
+                        }
+                    }
+                });
+
+                globalSensorsData = Array.from(tempMap.values());
+                globalSensorsData.sort((a, b) => a.id.localeCompare(b.id, undefined, {numeric: true}));
+                renderDashboard(globalSensorsData);
+            })
+            .catch(err => {
+                console.error("Dashboard error:", err);
+                document.getElementById('sensor-table-body').innerHTML = `
+                    <tr><td colspan="5" style="text-align:center; color:red; padding:20px;">
+                        Unable to connect to data feed. Retrying...
+                    </td></tr>`;
+            });
+    }
+
+    window.onload = () => {
+        fetchRotterdamData();
+        setInterval(fetchRotterdamData, 60000); 
+    };
+</script>
+</body>
+</html>            border: none;
             border-radius: 5px;
             cursor: pointer;
             font-weight: bold;
