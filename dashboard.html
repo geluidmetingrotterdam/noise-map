@@ -220,16 +220,17 @@
                 data.forEach(entry => {
                     const lat = entry.location.latitude;
                     const lon = entry.location.longitude;
+                    const sensorId = (entry.sensor.sensor_id || entry.sensor.id).toString();
 
-                    // UPDATED: Tighter coordinate boundary max lat 51.923 filters out Rotterdam Noord (sensor #97135)
-                    if (lat > 51.89 && lat < 51.923 && lon > 4.44 && lon < 4.55) {
+                    // 1. Reverted to your full original map boundaries to bring back all 12 sensors
+                    // 2. Added specific check to ignore ONLY the outsider (#97135)
+                    if (lat > 51.89 && lat < 51.93 && lon > 4.44 && lon < 4.55 && sensorId !== "97135") {
                         const noiseVal = entry.sensordatavalues.find(val =>
                             val.value_type.toLowerCase().includes("noise") || 
                             val.value_type.toLowerCase().includes("spl")
                         );
 
                         if (noiseVal) {
-                            const sensorId = (entry.sensor.sensor_id || entry.sensor.id).toString();
                             const dB = parseFloat(noiseVal.value).toFixed(1);
                             
                             const timestampStr = entry.timestamp.replace(' ', 'T') + 'Z';
