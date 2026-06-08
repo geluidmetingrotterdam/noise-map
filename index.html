@@ -99,9 +99,10 @@
           data.forEach(entry => {
             const lat = entry.location.latitude;
             const lon = entry.location.longitude;
+            const sensorId = entry.sensor.sensor_id || entry.sensor.id;
 
-            // Original Rotterdam central bounding box
-            if (lat > 51.89 && lat < 51.93 && lon > 4.44 && lon < 4.55) {
+            // Updated boundaries: Match your custom area but skip sensor 97135 explicitly
+            if (lat > 51.89 && lat < 51.93 && lon > 4.44 && lon < 4.55 && sensorId.toString() !== "97135") {
               const noiseVal = entry.sensordatavalues.find(val =>
                 val.value_type.toLowerCase().includes("noise") || 
                 val.value_type.toLowerCase().includes("spl")
@@ -111,7 +112,6 @@
                 count++;
                 const dB = parseFloat(noiseVal.value);
                 const color = getColor(dB);
-                const sensorId = entry.sensor.sensor_id || entry.sensor.id;
 
                 const popupContent = `
                   <strong>Noise Sensor</strong><br>
