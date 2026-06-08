@@ -221,7 +221,8 @@
                     const lat = entry.location.latitude;
                     const lon = entry.location.longitude;
 
-                    if (lat > 51.89 && lat < 51.93 && lon > 4.44 && lon < 4.55) {
+                    // UPDATED: Tighter coordinate boundary max lat 51.923 filters out Rotterdam Noord (sensor #97135)
+                    if (lat > 51.89 && lat < 51.923 && lon > 4.44 && lon < 4.55) {
                         const noiseVal = entry.sensordatavalues.find(val =>
                             val.value_type.toLowerCase().includes("noise") || 
                             val.value_type.toLowerCase().includes("spl")
@@ -235,7 +236,7 @@
                             const lastSeenTime = new Date(timestampStr);
                             
                             const timeDiffMinutes = (now - lastSeenTime) / (1000 * 60);
-                            const isOnline = timeDiffMinutes < 45; // 45-minute window matches the map processing latency
+                            const isOnline = timeDiffMinutes < 45; 
 
                             const localTimeDisplay = lastSeenTime.toLocaleString();
 
