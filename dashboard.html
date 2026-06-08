@@ -167,13 +167,18 @@
     let globalSensorsData = []; 
     let currentFilter = 'all';
 
-    function renderDashboard(sensors) {
+    function renderDashboard() {
         const tableBody = document.getElementById('sensor-table-body');
-        document.getElementById('total-count').innerText = sensors.length;
-        document.getElementById('online-count').innerText = sensors.filter(s => s.isOnline).length;
-        document.getElementById('offline-count').innerText = sensors.filter(s => !s.isOnline).length;
+        
+        const total = globalSensorsData.length;
+        const online = globalSensorsData.filter(s => s.isOnline).length;
+        const offline = total - online;
 
-        const filteredSensors = sensors.filter(s => currentFilter === 'offline' ? !s.isOnline : true);
+        document.getElementById('total-count').innerText = total;
+        document.getElementById('online-count').innerText = online;
+        document.getElementById('offline-count').innerText = offline;
+
+        const filteredSensors = globalSensorsData.filter(s => currentFilter === 'offline' ? !s.isOnline : true);
 
         if(filteredSensors.length === 0) {
             tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">No sensors found matching this filter.</td></tr>`;
@@ -202,7 +207,7 @@
         currentFilter = filterType;
         document.getElementById('btn-all').classList.toggle('active', filterType === 'all');
         document.getElementById('btn-offline').classList.toggle('active', filterType === 'offline');
-        renderDashboard(globalSensorsData);
+        renderDashboard();
     }
 
     function fetchRotterdamData() {
@@ -210,7 +215,7 @@
             .then(res => res.json())
             .then(data => {
                 const tempMap = new Map();
-                const now = new Date(); // Current local time on your device
+                const now = new Date(); 
 
                 data.forEach(entry => {
                     const lat = entry.location.latitude;
@@ -226,15 +231,12 @@
                             const sensorId = (entry.sensor.sensor_id || entry.sensor.id).toString();
                             const dB = parseFloat(noiseVal.value).toFixed(1);
                             
-                            // 1. Force the timestamp text to be parsed as UTC by adding 'Z'
                             const timestampStr = entry.timestamp.replace(' ', 'T') + 'Z';
                             const lastSeenTime = new Date(timestampStr);
                             
-                            // 2. Both variables are now proper JavaScript date objects, making comparison easy
                             const timeDiffMinutes = (now - lastSeenTime) / (1000 * 60);
-                            const isOnline = timeDiffMinutes < 25; // Online if updated in the last 25 minutes
+                            const isOnline = timeDiffMinutes < 45; // 45-minute window matches the map processing latency
 
-                            // 3. Convert it to local Dutch time format so it reads easily on screen
                             const localTimeDisplay = lastSeenTime.toLocaleString();
 
                             if (!tempMap.has(sensorId) || new Date(tempMap.get(sensorId).rawTime) < lastSeenTime) {
@@ -254,7 +256,7 @@
 
                 globalSensorsData = Array.from(tempMap.values());
                 globalSensorsData.sort((a, b) => a.id.localeCompare(b.id, undefined, {numeric: true}));
-                renderDashboard(globalSensorsData);
+                renderDashboard();
             })
             .catch(err => {
                 console.error("Dashboard error:", err);
@@ -271,129 +273,4 @@
     };
 </script>
 </body>
-</html>            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            background-color: #ddd;
-            transition: background 0.2s;
-        }
-
-        .btn.active, .btn:hover { background-color: var(--accent-color); color: white; }
-        .btn-offline.active { background-color: var(--offline-color); color: white; }
-
-        /* Sensor Table */
-        .table-container {
-            background: var(--card-bg);
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: left;
-        }
-
-        th, td { padding: 15px; border-bottom: 1px solid #eee; }
-        th { background-color: #f8f9fa; color: #555; }
-
-        .status-badge {
-            padding: 5px 10px;
-            border-radius: 12px;
-            font-size: 0.8rem;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-
-        .status-badge.online { background-color: #d1f7ec; color: #0f785c; }
-        .status-badge.offline { background-color: #fcd5d9; color: #b71c1c; }
-
-        .actions a {
-            color: #0077cc;
-            text-decoration: none;
-            font-weight: 500;
-            margin-right: 15px;
-        }
-        .actions a:hover { text-decoration: underline; }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <header>
-        <div>
-            <h1>Noise Sensor Dashboard</h1>
-            <p>Rotterdam Centrum Monitoring</p>
-        </div>
-        <a href="https://geluidmetingrotterdam.github.io/noise-map/" target="_blank" style="text-decoration: none; font-weight: bold; color: #0077cc;">← Back to Map</a>
-    </header>
-
-    <div class="summary-cards">
-        <div class="card">
-            <h3>Rotterdam Sensors Detected</h3>
-            <div class="value" id="total-count">0</div>
-        </div>
-        <div class="card online">
-            <h3>Online (Last 30m)</h3>
-            <div class="value" id="online-count">0</div>
-        </div>
-        <div class="card offline">
-            <h3>Offline</h3>
-            <div class="value" id="offline-count">0</div>
-        </div>
-    </div>
-
-    <div class="controls">
-        <button class="btn active" id="btn-all" onclick="filterSensors('all')">Show All</button>
-        <button class="btn btn-offline" id="btn-offline" onclick="filterSensors('offline')">Show Offline Only 🚨</button>
-    </div>
-
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th>Sensor ID</th>
-                    <th>Latest Value</th>
-                    <th>Status</th>
-                    <th>Last Active (Local Time)</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="sensor-table-body">
-                <tr><td colspan="5" style="text-align:center;">Fetching live data from Sensor.community feed... (this can take a few seconds)</td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<script>
-    let globalSensorsData = []; 
-    let currentFilter = 'all';
-
-    function renderDashboard(sensors) {
-        const tableBody = document.getElementById('sensor-table-body');
-        const totalCount = document.getElementById('total-count');
-        const onlineCount = document.getElementById('online-count');
-        const offlineCount = document.getElementById('offline-count');
-
-        const total = sensors.length;
-        const online = sensors.filter(s => s.isOnline).length;
-        const offline = total - online;
-
-        totalCount.innerText = total;
-        onlineCount.innerText = online;
-        offlineCount.innerText = offline;
-
-        const filteredSensors = sensors.filter(s => {
-            if (currentFilter === 'offline') return !s.isOnline;
-            return true;
-        });
-
-        if(filteredSensors.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">No sensors found matching this filter.</td></tr>`;
-            return;
-        }
-
-        tableBody.innerHTML = filteredSensors.
+</html>
