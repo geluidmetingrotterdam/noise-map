@@ -1,0 +1,18 @@
+name: Manual 30-Day Backfill
+on: workflow_dispatch # This makes it appear in the Actions tab only when you click it
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install requests influxdb-client
+      - name: Run 30-day Backfill
+        env:
+          INFLUX_URL: ${{ secrets.INFLUX_URL }}
+          INFLUX_TOKEN: ${{ secrets.INFLUX_TOKEN }}
+          INFLUX_ORG: ${{ secrets.INFLUX_ORG }}
+          INFLUX_BUCKET: ${{ secrets.INFLUX_BUCKET }}
+        run: python import_live_sensors_30days.py
