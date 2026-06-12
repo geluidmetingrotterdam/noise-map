@@ -1,0 +1,25 @@
+name: Generate Directory Index
+
+on:
+  push:
+    paths:
+      - 'noise-map/reports/**' # Only runs when you add/update files in reports/
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate Directory Listing
+        uses: gacts/directory-listing@v1
+        with:
+          target: './noise-map/reports'
+          overwrite: true
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: './'
