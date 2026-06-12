@@ -5,3 +5,4 @@ pandas
 matplotlib
 jinja2
 weasyprint
+seaborn
