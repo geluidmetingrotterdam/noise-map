@@ -3,8 +3,9 @@ name: Generate Directory Index
 on:
   push:
     paths:
-      - 'noise-map/reports/**' # Only runs when you add/update files in reports/
-
+      - 'noise-map/reports/**'
+  workflow_dispatch: # <--- ADD THIS LINE
+  
 jobs:
   build:
     runs-on: ubuntu-latest
