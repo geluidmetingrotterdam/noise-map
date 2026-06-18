@@ -17,14 +17,16 @@
 <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
-    const map = L.map('map').setView([51.9225, 4.47917], 12);
+    // Initialize map centered on Rotterdam
+    const map = L.map('map').setView([51.9225, 4.47917], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Recursive function to fetch all pages of data
     async function fetchAllData(url, allPoints = []) {
-        const proxy = 'https://corsproxy.io/?url=' + encodeURIComponent(url);
+        // Using allorigins as a reliable proxy
+        const proxy = 'https://api.allorigins.win/get?url=' + encodeURIComponent(url);
         const response = await fetch(proxy);
-        const data = await response.json();
+        const json = await response.json();
+        const data = JSON.parse(json.contents);
 
         const sensors = data.value || [];
         sensors.forEach(thing => {
@@ -32,11 +34,12 @@
             const ds = thing.Datastreams?.[0];
             const temp = ds?.Observations?.[0]?.result;
 
-            // Only proceed if active, has coordinates, and has a temperature reading
+            // Must be active and have valid data
             if (coords && temp !== null && temp !== undefined && ds?.isActive === true) {
                 
-                // Rotterdam bounding box
-                const isRotterdam = (coords[0] > 4.3 && coords[0] < 4.6 && coords[1] > 51.8 && coords[1] < 52.0);
+                // TIGHTER FILTER: Only sensors in the Rotterdam urban core
+                // Longitude: 4.40 to 4.55, Latitude: 51.88 to 51.96
+                const isRotterdam = (coords[0] > 4.40 && coords[0] < 4.55 && coords[1] > 51.88 && coords[1] < 51.96);
                 
                 if (isRotterdam) {
                     allPoints.push([coords[1], coords[0], parseFloat(temp)]);
@@ -44,27 +47,26 @@
             }
         });
 
-        // Follow the '@iot.nextLink' if it exists
+        // Continue to next page if available
         if (data['@iot.nextLink']) {
-            console.log("Fetching next page...");
             return fetchAllData(data['@iot.nextLink'], allPoints);
         } else {
             return allPoints;
         }
     }
 
-    // Start fetching
-    const initialUrl = 'https://api-virtualair.nilu.no/v1.1/Things?$expand=Datastreams/Observations($orderby=phenomenonTime%20desc;$top=1),Locations&$top=100';
+    // Start with small page size (50) to avoid 413 errors
+    const initialUrl = 'https://api-virtualair.nilu.no/v1.1/Things?$expand=Datastreams/Observations($orderby=phenomenonTime%20desc;$top=1),Locations&$top=50';
 
     fetchAllData(initialUrl).then(allPoints => {
         if (allPoints.length > 0) {
             L.heatLayer(allPoints, {
-                radius: 30, 
+                radius: 35, 
                 blur: 20
             }).addTo(map);
-            console.log("Success! Total active sensors mapped in Rotterdam: " + allPoints.length);
+            console.log("Success! Mapped " + allPoints.length + " active sensors in Rotterdam core.");
         } else {
-            console.warn("No active sensors found in the Rotterdam area.");
+            console.warn("No active sensors found in the tightened Rotterdam area. Try expanding the coordinates.");
         }
     }).catch(err => console.error("Error loading data:", err));
 </script>
