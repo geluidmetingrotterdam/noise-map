@@ -17,58 +17,54 @@
 <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
-    // Initialize map centered on Rotterdam
     const map = L.map('map').setView([51.9225, 4.47917], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     async function fetchAllData(url, allPoints = []) {
-        // Using allorigins as a reliable proxy
-        const proxy = 'https://api.allorigins.win/get?url=' + encodeURIComponent(url);
-        const response = await fetch(proxy);
-        const json = await response.json();
-        const data = JSON.parse(json.contents);
+        // Use corsproxy.io directly for the URL
+        const proxy = 'https://corsproxy.io/?url=' + encodeURIComponent(url);
+        
+        try {
+            const response = await fetch(proxy);
+            if (!response.ok) throw new Error('Proxy returned ' + response.status);
+            
+            const data = await response.json();
+            const sensors = data.value || [];
 
-        const sensors = data.value || [];
-        sensors.forEach(thing => {
-            const coords = thing.Locations?.[0]?.location?.coordinates;
-            const ds = thing.Datastreams?.[0];
-            const temp = ds?.Observations?.[0]?.result;
+            sensors.forEach(thing => {
+                const coords = thing.Locations?.[0]?.location?.coordinates;
+                const ds = thing.Datastreams?.[0];
+                const temp = ds?.Observations?.[0]?.result;
 
-            // Must be active and have valid data
-            if (coords && temp !== null && temp !== undefined && ds?.isActive === true) {
-                
-                // TIGHTER FILTER: Only sensors in the Rotterdam urban core
-                // Longitude: 4.40 to 4.55, Latitude: 51.88 to 51.96
-                const isRotterdam = (coords[0] > 4.40 && coords[0] < 4.55 && coords[1] > 51.88 && coords[1] < 51.96);
-                
-                if (isRotterdam) {
-                    allPoints.push([coords[1], coords[0], parseFloat(temp)]);
+                if (coords && temp !== null && temp !== undefined && ds?.isActive === true) {
+                    // Broader range to ensure we capture the sensors (4.3 to 4.7, 51.8 to 52.0)
+                    if (coords[0] > 4.3 && coords[0] < 4.7 && coords[1] > 51.8 && coords[1] < 52.0) {
+                        allPoints.push([coords[1], coords[0], parseFloat(temp)]);
+                    }
                 }
-            }
-        });
+            });
 
-        // Continue to next page if available
-        if (data['@iot.nextLink']) {
-            return fetchAllData(data['@iot.nextLink'], allPoints);
-        } else {
+            if (data['@iot.nextLink']) {
+                console.log("Fetching next page...");
+                return await fetchAllData(data['@iot.nextLink'], allPoints);
+            }
+            return allPoints;
+        } catch (err) {
+            console.error("Critical Load Error:", err);
             return allPoints;
         }
     }
 
-    // Start with small page size (50) to avoid 413 errors
     const initialUrl = 'https://api-virtualair.nilu.no/v1.1/Things?$expand=Datastreams/Observations($orderby=phenomenonTime%20desc;$top=1),Locations&$top=50';
 
     fetchAllData(initialUrl).then(allPoints => {
         if (allPoints.length > 0) {
-            L.heatLayer(allPoints, {
-                radius: 35, 
-                blur: 20
-            }).addTo(map);
-            console.log("Success! Mapped " + allPoints.length + " active sensors in Rotterdam core.");
+            L.heatLayer(allPoints, {radius: 35, blur: 20}).addTo(map);
+            console.log("Success! Mapped " + allPoints.length + " sensors.");
         } else {
-            console.warn("No active sensors found in the tightened Rotterdam area. Try expanding the coordinates.");
+            console.warn("No active sensors found. Check console for proxy errors.");
         }
-    }).catch(err => console.error("Error loading data:", err));
+    });
 </script>
 </body>
 </html>
