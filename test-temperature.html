@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Rotterdam Temperature Heatmap</title>
+    <title>Rotterdam Environmental Map</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; }
@@ -17,60 +17,44 @@
 <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
 
 <script>
-    // 1. Initialize the map
     const map = L.map('map').setView([51.9225, 4.47917], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // 2. Define the API URL with a CORS proxy to bypass browser security blocks
-    const targetUrl = 'https://api-virtualair.nilu.no/v1.1/Things?$expand=Locations,Datastreams/Observations($orderby=phenomenonTime%20desc;$top=1)';
-    const proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(targetUrl);
+    const tempUrl = 'https://api-virtualair.nilu.no/v1.1/airTemperature';
+    const proxy = 'https://corsproxy.io/?url=';
 
-    // 3. Fetch and process data
-    fetch(proxyUrl)
-        .then(response => {
-            if (!response.ok) throw new Error('Network response was not ok');
-            return response.json();
-        })
+    // Fetch the Temperature data
+    fetch(proxy + encodeURIComponent(tempUrl))
+        .then(response => response.json())
         .then(data => {
-            console.log("Data received:", data);
             const heatPoints = [];
-
-            data.value.forEach(thing => {
-                // Ensure Location exists
-                if (thing.Locations && thing.Locations.length > 0) {
-                    const coords = thing.Locations[0].location.coordinates; // [lon, lat]
-                    
-                    // Filter for temperature datastreams
-                    thing.Datastreams.forEach(ds => {
-                        if (ds.name.toLowerCase().includes('temperature') && ds.Observations.length > 0) {
-                            const temp = ds.Observations[0].result;
-                            // Add to points: [lat, lon, intensity]
-                            // Using temperature value as intensity
+            
+            data.data.forEach(item => {
+                if (item.Datastreams && item.Datastreams.length > 0) {
+                    const ds = item.Datastreams[0];
+                    // Verify Thing, Location, and Result exist
+                    if (ds.Thing?.Locations?.[0]?.location?.coordinates && ds.lastObservationResult !== null) {
+                        const coords = ds.Thing.Locations[0].location.coordinates;
+                        const temp = parseFloat(ds.lastObservationResult);
+                        
+                        // Add only if it's a valid number
+                        if (!isNaN(temp)) {
                             heatPoints.push([coords[1], coords[0], temp]);
                         }
-                    });
+                    }
                 }
             });
 
             if (heatPoints.length > 0) {
-                console.log("Mapping points:", heatPoints);
                 L.heatLayer(heatPoints, {
                     radius: 30,
                     blur: 20,
-                    maxZoom: 10,
-                    gradient: {0.4: 'blue', 0.65: 'lime', 1: 'red'}
+                    max: 30 // Set based on typical max temp in Rotterdam
                 }).addTo(map);
-            } else {
-                console.warn("No temperature data points found to map.");
+                console.log("Mapped " + heatPoints.length + " temperature points.");
             }
         })
-        .catch(error => {
-            console.error('Fetch error:', error);
-            alert('Could not load data. Check the browser Console (Option + Cmd + C) for details.');
-        });
+        .catch(err => console.error("Error loading data:", err));
 </script>
-
 </body>
 </html>
