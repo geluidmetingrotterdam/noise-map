@@ -1,63 +1,43 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Rotterdam Temperature Heatmap</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        body { margin: 0; padding: 0; }
-        #map { height: 100vh; width: 100vw; }
-    </style>
-</head>
-<body>
+// 1. Define the specific Rotterdam-area bounding box
+// Using a smaller, precise area keeps the response small
+const rotterdamBounds = 'POLYGON((4.3 51.8, 4.6 51.8, 4.6 52.0, 4.3 52.0, 4.3 51.8))';
 
-<div id="map"></div>
+// 2. Build the query to filter by location AND type (Temperature)
+// This keeps the response size very small
+const baseUrl = 'https://api-virtualair.nilu.no/v1.1/Things';
+const query = `?$expand=Datastreams/Observations($orderby=phenomenonTime%20desc;$top=1),Locations` +
+              `&$filter=st_within(Locations/location, geography'${rotterdamBounds}')` +
+              ` and Datastreams/ObservedProperty/definition eq 'http://vocabs.lter-europe.net/EnvThes/22035'`;
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
+const apiUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(baseUrl + query);
 
-<script>
-    const map = L.map('map').setView([51.9225, 4.47917], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+// 3. Fetch with confidence
+fetch(apiUrl)
+    .then(response => {
+        if (!response.ok) throw new Error('API request failed');
+        return response.json();
+    })
+    .then(data => {
+        console.log("Filtered Data:", data);
+        const heatPoints = [];
+        
+        // Ensure we handle the standard SensorThings 'value' array
+        const sensors = data.value || [];
+        sensors.forEach(thing => {
+            const coords = thing.Locations?.[0]?.location?.coordinates;
+            const temp = thing.Datastreams?.[0]?.Observations?.[0]?.result;
 
-    // Using the official OGC/SensorThings API endpoint
-    const baseUrl = 'https://api-virtualair.nilu.no/v1.1/Things';
-    const query = `?$expand=Datastreams/Observations($orderby=phenomenonTime%20desc;$top=1),Locations`;
-    const apiUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(baseUrl + query);
-
-    fetch(apiUrl)
-        .then(response => response.json())
-        .then(data => {
-            // Log this to see the structure in the Console
-            console.log("API Response Structure:", data);
-
-            const heatPoints = [];
-            
-            // The OGC standard uses 'data.value', not 'data.data'
-            if (data.value && Array.isArray(data.value)) {
-                data.value.forEach(thing => {
-                    const loc = thing.Locations?.[0]?.location?.coordinates;
-                    const ds = thing.Datastreams?.[0];
-                    const obs = ds?.Observations?.[0]?.result;
-
-                    if (loc && obs !== undefined && obs !== null) {
-                        // Leaflet needs [lat, lon, intensity]
-                        // API returns [lon, lat]
-                        heatPoints.push([loc[1], loc[0], obs]);
-                    }
-                });
-
-                if (heatPoints.length > 0) {
-                    L.heatLayer(heatPoints, {radius: 30, blur: 20, max: 30}).addTo(map);
-                    console.log("Mapped " + heatPoints.length + " sensors.");
-                } else {
-                    console.warn("No valid temperature data found in the response.");
-                }
-            } else {
-                console.error("Data structure is not as expected. Check the 'API Response Structure' log.");
+            if (coords && temp !== null && temp !== undefined) {
+                // Leaflet uses [lat, lon, intensity]
+                heatPoints.push([coords[1], coords[0], temp]);
             }
-        })
-        .catch(err => console.error("Error loading data:", err));
-</script>
-</body>
-</html>
+        });
+
+        if (heatPoints.length > 0) {
+            L.heatLayer(heatPoints, {radius: 30, blur: 20}).addTo(map);
+            console.log("Mapped " + heatPoints.length + " sensors.");
+        } else {
+            console.warn("No sensors found in Rotterdam with this filter.");
+        }
+    })
+    .catch(err => console.error("Error loading data:", err));
