@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Rotterdam Temperature Heatmap</title>
+    <title>Rotterdam Active Temperature Map</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; }
@@ -20,45 +20,53 @@
     const map = L.map('map').setView([51.9225, 4.47917], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Short, simple URL to avoid 413 and size limit errors
-    const baseUrl = 'https://api-virtualair.nilu.no/v1.1/Things';
-    const query = `?$expand=Datastreams/Observations($orderby=phenomenonTime%20desc;$top=1),Locations&$top=200`;
-    const apiUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(baseUrl + query);
+    // Recursive function to fetch all pages of data
+    async function fetchAllData(url, allPoints = []) {
+        const proxy = 'https://corsproxy.io/?url=' + encodeURIComponent(url);
+        const response = await fetch(proxy);
+        const data = await response.json();
 
-    fetch(apiUrl)
-        .then(response => {
-            if (!response.ok) throw new Error('Network response failed');
-            return response.json();
-        })
-        .then(data => {
-            console.log("Data loaded, processing...", data);
-            const heatPoints = [];
-            const sensors = data.value || [];
+        const sensors = data.value || [];
+        sensors.forEach(thing => {
+            const coords = thing.Locations?.[0]?.location?.coordinates;
+            const ds = thing.Datastreams?.[0];
+            const temp = ds?.Observations?.[0]?.result;
 
-            sensors.forEach(thing => {
-                const coords = thing.Locations?.[0]?.location?.coordinates;
-                // Get the first observation result
-                const ds = thing.Datastreams?.[0];
-                const temp = ds?.Observations?.[0]?.result;
-
-                if (coords && temp !== null && temp !== undefined) {
-                    // Manual filter for Rotterdam area (Lon: 4.0-5.0, Lat: 51.5-52.5)
-                    const isRotterdam = (coords[0] > 4.0 && coords[0] < 5.0 && coords[1] > 51.5 && coords[1] < 52.5);
-                    
-                    if (isRotterdam) {
-                        heatPoints.push([coords[1], coords[0], parseFloat(temp)]);
-                    }
+            // Only proceed if active, has coordinates, and has a temperature reading
+            if (coords && temp !== null && temp !== undefined && ds?.isActive === true) {
+                
+                // Rotterdam bounding box
+                const isRotterdam = (coords[0] > 4.3 && coords[0] < 4.6 && coords[1] > 51.8 && coords[1] < 52.0);
+                
+                if (isRotterdam) {
+                    allPoints.push([coords[1], coords[0], parseFloat(temp)]);
                 }
-            });
-
-            if (heatPoints.length > 0) {
-                L.heatLayer(heatPoints, {radius: 30, blur: 20}).addTo(map);
-                console.log("Success! Mapped " + heatPoints.length + " sensors in Rotterdam.");
-            } else {
-                console.warn("No sensors found in Rotterdam. Check your coordinates/API results.");
             }
-        })
-        .catch(err => console.error("Error:", err));
+        });
+
+        // Follow the '@iot.nextLink' if it exists
+        if (data['@iot.nextLink']) {
+            console.log("Fetching next page...");
+            return fetchAllData(data['@iot.nextLink'], allPoints);
+        } else {
+            return allPoints;
+        }
+    }
+
+    // Start fetching
+    const initialUrl = 'https://api-virtualair.nilu.no/v1.1/Things?$expand=Datastreams/Observations($orderby=phenomenonTime%20desc;$top=1),Locations&$top=100';
+
+    fetchAllData(initialUrl).then(allPoints => {
+        if (allPoints.length > 0) {
+            L.heatLayer(allPoints, {
+                radius: 30, 
+                blur: 20
+            }).addTo(map);
+            console.log("Success! Total active sensors mapped in Rotterdam: " + allPoints.length);
+        } else {
+            console.warn("No active sensors found in the Rotterdam area.");
+        }
+    }).catch(err => console.error("Error loading data:", err));
 </script>
 </body>
 </html>
