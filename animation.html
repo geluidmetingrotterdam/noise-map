@@ -8,13 +8,14 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        body { margin:0; padding:0; background: #000; color: white; font-family: sans-serif; }
+        /* Change body background to white */
+        body { margin:0; padding:0; background: #fff; font-family: sans-serif; }
         #map { height: 100vh; width: 100vw; }
 
-        /* This only dims the background map, not the markers */
+        /* The tile pane filter will now make a light map turn dark */
         .leaflet-tile-pane { transition: filter 1s ease; }
 
-        /* The pulsing marker with white border */
+        /* Marker with white border */
         .glow-marker {
             width: 12px; height: 12px;
             border-radius: 50%;
@@ -34,20 +35,23 @@
 
 <script>
     const map = L.map('map', { zoomControl: false }).setView([51.9225, 4.47917], 13);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+    
+    // SWITCHED TO LIGHT MAP
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
 
     let markersLayer = L.layerGroup().addTo(map);
     let currentHour = 0; 
 
     function updateMap() {
-        // 1. Calculate Brightness (1.0 = Day, 0.3 = Night)
+        // 1. Calculate Brightness: Day = 1.0 (Normal), Night = 0.2 (Dark)
         let brightness = 1.0;
-        if (currentHour >= 5 && currentHour < 7) brightness = 0.3 + (currentHour - 5) * 0.35;
+        if (currentHour >= 5 && currentHour < 7) brightness = 0.2 + (currentHour - 5) * 0.4;
         else if (currentHour >= 7 && currentHour < 18) brightness = 1.0;
-        else if (currentHour >= 18 && currentHour < 20) brightness = 1.0 - (currentHour - 18) * 0.35;
-        else brightness = 0.3;
+        else if (currentHour >= 18 && currentHour < 20) brightness = 1.0 - (currentHour - 18) * 0.4;
+        else brightness = 0.2;
         
-        // Target only the map tiles
         const tilePane = document.querySelector('.leaflet-tile-pane');
         if (tilePane) tilePane.style.filter = `brightness(${brightness})`;
 
@@ -57,7 +61,7 @@
         
         dummyData.forEach(coord => {
             const intensity = Math.random();
-            const colorRgb = intensity > 0.6 ? '255, 0, 0' : (intensity > 0.3 ? '255, 255, 0' : '0, 255, 255');
+            const colorRgb = intensity > 0.6 ? '255, 0, 0' : (intensity > 0.3 ? '255, 165, 0' : '0, 255, 0');
             
             L.marker(coord, {
                 icon: L.divIcon({
