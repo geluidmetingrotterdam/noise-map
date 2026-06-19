@@ -6,17 +6,26 @@
   <title>Noise Map Animation</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body { margin: 0; padding: 0; background-color: #111; }
-    #map { height: 100vh; transition: filter 0.5s ease; }
+    body { margin: 0; padding: 0; background-color: #000; }
+    #map { height: 100vh; }
     
+    /* Map dims, markers stay bright */
+    .leaflet-tile-pane {
+      transition: filter 0.5s ease;
+    }
+
     .pulsing-icon div {
       width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid white;
       animation: pulse 1.5s infinite;
+      /* This gets updated by the JS via style attribute */
+      background: rgb(var(--marker-color-rgb));
     }
+
     @keyframes pulse {
-      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0.4); }
-      70% { transform: scale(1.4); box-shadow: 0 0 0 10px rgba(0,0,0,0); }
-      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+      0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(var(--marker-color-rgb), 0.7); }
+      70% { transform: scale(1.4); box-shadow: 0 0 0 15px rgba(var(--marker-color-rgb), 0); }
+      100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(var(--marker-color-rgb), 0); }
     }
 
     #clock {
@@ -35,24 +44,28 @@
   <script>
     const map = L.map('map', { maxZoom: 18 }).setView([51.9191, 4.4801], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
+      attribution: '&copy; OpenStreetMap'
     }).addTo(map);
 
     let markersLayer = L.layerGroup().addTo(map);
-    
-    // Create 5 dummy sensors for demonstration
     const sensors = [
       [51.922, 4.475], [51.918, 4.480], [51.920, 4.485], [51.915, 4.470], [51.925, 4.490]
     ];
 
-    let currentHour = 0; // 0 to 23
+    let currentHour = 0; 
 
     function animateMap() {
-      // 1. Calculate Brightness (0.3 = Night, 1.0 = Day)
-      const brightness = 0.65 + 0.35 * Math.cos(((currentHour - 12) / 24) * 2 * Math.PI);
-      document.getElementById('map').style.filter = `brightness(${brightness})`;
+      // 1. Natural Brightness Logic
+      let brightness = 1.0;
+      if (currentHour >= 5 && currentHour < 7) brightness = 0.3 + (currentHour - 5) * 0.35;
+      else if (currentHour >= 7 && currentHour < 18) brightness = 1.0;
+      else if (currentHour >= 18 && currentHour < 20) brightness = 1.0 - (currentHour - 18) * 0.35;
+      else brightness = 0.3;
+
+      const tilePane = document.querySelector('.leaflet-tile-pane');
+      if (tilePane) tilePane.style.filter = `brightness(${brightness})`;
       
-      // 2. Update Clock UI
+      // 2. Update Clock
       document.getElementById('clock').innerText = `Time: ${currentHour.toString().padStart(2, '0')}:00`;
 
       // 3. Update Markers
@@ -60,26 +73,26 @@
       const norm = (currentHour >= 7 && currentHour < 19) ? 70 : 45;
 
       sensors.forEach(pos => {
-        // Fake dynamic noise: higher during day (roughly 50-80dB)
         const base = (currentHour >= 7 && currentHour < 19) ? 60 : 30;
         const noise = base + Math.random() * 30;
         
-        let color = noise > norm + 10 ? 'red' : (noise > norm ? 'orange' : 'green');
+        let colorRgb = '0, 128, 0'; // Green
+        if (noise > norm + 10) colorRgb = '255, 0, 0'; // Red
+        else if (noise > norm) colorRgb = '255, 165, 0'; // Orange
 
         L.marker(pos, {
           icon: L.divIcon({
             className: 'pulsing-icon',
-            html: `<div style="background:${color}"></div>`,
+            html: `<div style="--marker-color-rgb: ${colorRgb};"></div>`,
             iconSize: [20, 20]
           })
         }).addTo(markersLayer);
       });
 
-      // Increment time
       currentHour = (currentHour + 1) % 24;
     }
 
-    // Run animation loop every 800ms
+    // Set to 800ms for a comfortable animation speed for recording
     setInterval(animateMap, 800);
     animateMap();
   </script>
