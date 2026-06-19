@@ -15,9 +15,11 @@
         .glow-marker {
             width: 12px; height: 12px;
             border-radius: 50%;
-            /* border: 2px solid rgba(255,255,255,0.5); */
+            /* Apply the variable here so the animation can use it */
+            background: rgb(var(--marker-rgb));
             animation: pulse-glow 2s infinite;
         }
+        
         @keyframes pulse-glow {
             0% { box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0.7); }
             70% { box-shadow: 0 0 0 15px rgba(var(--marker-rgb), 0); }
@@ -43,20 +45,23 @@
         else if (currentHour >= 7 && currentHour < 18) brightness = 1.0;
         else if (currentHour >= 18 && currentHour < 20) brightness = 1.0 - (currentHour - 18) * 0.35;
         else brightness = 0.3;
-        document.querySelector('.leaflet-tile-pane').style.filter = `brightness(${brightness})`;
+        
+        const tilePane = document.querySelector('.leaflet-tile-pane');
+        if (tilePane) tilePane.style.filter = `brightness(${brightness})`;
 
-        // 2. Refresh Markers with Glow
+        // 2. Refresh Markers
         markersLayer.clearLayers();
         const dummyData = [[51.922, 4.479], [51.925, 4.485], [51.918, 4.470]];
         
         dummyData.forEach(coord => {
-            const intensity = Math.random(); // 0 to 1
+            const intensity = Math.random();
             const colorRgb = intensity > 0.6 ? '255, 0, 0' : (intensity > 0.3 ? '255, 255, 0' : '0, 255, 255');
             
+            // Pass the style variable to the main container (the icon)
             L.marker(coord, {
                 icon: L.divIcon({
                     className: 'glow-marker',
-                    html: `<div style="width:100%; height:100%; border-radius:50%; background: rgb(${colorRgb}); --marker-rgb: ${colorRgb};"></div>`,
+                    html: `<div style="--marker-rgb: ${colorRgb};"></div>`,
                     iconSize: [12, 12]
                 })
             }).addTo(markersLayer);
