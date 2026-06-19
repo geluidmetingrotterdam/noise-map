@@ -1,25 +1,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Rotterdam Health & Environmental Map</title>
+    <title>Rotterdam Health Map</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        body { margin:0; padding:0; background: #111; color: white; font-family: sans-serif; }
-        #map { height: 100vh; width: 100vw; transition: filter 1s ease; }
+        body { margin:0; padding:0; background: #000; color: white; font-family: sans-serif; }
+        #map { height: 100vh; width: 100vw; }
         
-        /* The Pulsing Glow CSS */
+        /* The Overlay: This will darken the map without touching markers */
+        #dark-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 600; /* Between map and markers */
+            pointer-events: none; transition: background 1s ease;
+        }
+
+        /* Marker Glow CSS */
         .glow-marker {
             width: 12px; height: 12px;
             border-radius: 50%;
-            /* Apply the variable here so the animation can use it */
             background: rgb(var(--marker-rgb));
             animation: pulse-glow 2s infinite;
         }
-        
         @keyframes pulse-glow {
             0% { box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0.7); }
             70% { box-shadow: 0 0 0 15px rgba(var(--marker-rgb), 0); }
@@ -30,8 +35,7 @@
 <body>
 
 <div id="map"></div>
-
-<script>
+<div id="dark-overlay"></div> <script>
     const map = L.map('map', { zoomControl: false }).setView([51.9225, 4.47917], 13);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
@@ -39,15 +43,14 @@
     let currentHour = 0; 
 
     function updateMap() {
-        // 1. Natural Brightness Logic
-        let brightness = 1.0;
-        if (currentHour >= 5 && currentHour < 7) brightness = 0.3 + (currentHour - 5) * 0.35;
-        else if (currentHour >= 7 && currentHour < 18) brightness = 1.0;
-        else if (currentHour >= 18 && currentHour < 20) brightness = 1.0 - (currentHour - 18) * 0.35;
-        else brightness = 0.3;
+        // 1. Natural Dimming Logic (0.0 = Light overlay, 0.7 = Dark overlay)
+        let opacity = 0.0;
+        if (currentHour >= 5 && currentHour < 7) opacity = 0.5 - (currentHour - 5) * 0.25;
+        else if (currentHour >= 7 && currentHour < 18) opacity = 0.0;
+        else if (currentHour >= 18 && currentHour < 20) opacity = (currentHour - 18) * 0.25;
+        else opacity = 0.5;
         
-        const tilePane = document.querySelector('.leaflet-tile-pane');
-        if (tilePane) tilePane.style.filter = `brightness(${brightness})`;
+        document.getElementById('dark-overlay').style.background = `rgba(0,0,0,${opacity})`;
 
         // 2. Refresh Markers
         markersLayer.clearLayers();
@@ -57,7 +60,6 @@
             const intensity = Math.random();
             const colorRgb = intensity > 0.6 ? '255, 0, 0' : (intensity > 0.3 ? '255, 255, 0' : '0, 255, 255');
             
-            // Pass the style variable to the main container (the icon)
             L.marker(coord, {
                 icon: L.divIcon({
                     className: 'glow-marker',
