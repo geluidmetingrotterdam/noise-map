@@ -7,15 +7,14 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body { margin: 0; padding: 0; background-color: #111; }
-    /* Target only the tiles for brightness, keeping markers visible */
+    /* Target only the tiles so markers remain crisp */
     .leaflet-tile-pane { transition: filter 0.5s ease; }
     #map { height: 100vh; }
     
-    /* Rectangle style */
+    /* Larger, transparent rectangle style */
     .sensor-rect {
-      width: 30px; height: 12px;
-      border-radius: 2px;
-      opacity: 0.9;
+      width: 50px; height: 20px;
+      /* No border */
     }
 
     #clock {
@@ -45,7 +44,7 @@
     let currentHour = 0; 
 
     function animateMap() {
-      // 1. Calculate Brightness (Only for tiles)
+      // 1. Calculate Brightness for Tiles
       const brightness = 0.65 + 0.35 * Math.cos(((currentHour - 12) / 24) * 2 * Math.PI);
       const tilePane = document.querySelector('.leaflet-tile-pane');
       if (tilePane) tilePane.style.filter = `brightness(${brightness})`;
@@ -60,13 +59,16 @@
       sensors.forEach(pos => {
         const base = (currentHour >= 7 && currentHour < 19) ? 60 : 30;
         const noise = base + Math.random() * 30;
-        let color = noise > norm + 10 ? '#ff4d4d' : (noise > norm ? '#ffa500' : '#2ecc71');
+        
+        // Define colors with 0.7 (70%) transparency
+        let rgbaColor = noise > norm + 10 ? 'rgba(255, 77, 77, 0.7)' : 
+                       (noise > norm ? 'rgba(255, 165, 0, 0.7)' : 'rgba(46, 204, 113, 0.7)');
 
         L.marker(pos, {
           icon: L.divIcon({
             className: 'sensor-rect',
-            html: `<div style="width:100%; height:100%; background-color:${color};"></div>`,
-            iconSize: [30, 12]
+            html: `<div style="width:100%; height:100%; background-color:${rgbaColor}; border-radius:4px;"></div>`,
+            iconSize: [50, 20]
           })
         }).addTo(markersLayer);
       });
