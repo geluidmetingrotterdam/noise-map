@@ -7,14 +7,22 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body { margin: 0; padding: 0; background-color: #111; }
-    /* Target only the tiles so markers remain crisp */
-    .leaflet-tile-pane { transition: filter 0.5s ease; }
     #map { height: 100vh; }
     
-    /* Larger, transparent rectangle style */
-    .sensor-rect {
-      width: 50px; height: 20px;
-      /* No border */
+    /* Target only tiles so markers stay bright and clear */
+    .leaflet-tile-pane { transition: filter 0.5s ease; }
+    
+    /* Circle style with transparency and pulsing glow */
+    .pulsing-icon div {
+      width: 20px; height: 20px; border-radius: 50%;
+      opacity: 0.8; /* Transparency for the circle itself */
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0.7); }
+      70% { transform: scale(1.6); box-shadow: 0 0 0 15px rgba(var(--marker-rgb), 0); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0); }
     }
 
     #clock {
@@ -44,7 +52,7 @@
     let currentHour = 0; 
 
     function animateMap() {
-      // 1. Calculate Brightness for Tiles
+      // 1. Calculate Brightness for Tiles only
       const brightness = 0.65 + 0.35 * Math.cos(((currentHour - 12) / 24) * 2 * Math.PI);
       const tilePane = document.querySelector('.leaflet-tile-pane');
       if (tilePane) tilePane.style.filter = `brightness(${brightness})`;
@@ -60,15 +68,15 @@
         const base = (currentHour >= 7 && currentHour < 19) ? 60 : 30;
         const noise = base + Math.random() * 30;
         
-        // Define colors with 0.7 (70%) transparency
-        let rgbaColor = noise > norm + 10 ? 'rgba(255, 77, 77, 0.7)' : 
-                       (noise > norm ? 'rgba(255, 165, 0, 0.7)' : 'rgba(46, 204, 113, 0.7)');
+        // Define color as RGB values for the CSS variable
+        let colorRgb = noise > norm + 10 ? '255, 0, 0' : (noise > norm ? '255, 165, 0' : '46, 204, 113');
 
         L.marker(pos, {
           icon: L.divIcon({
-            className: 'sensor-rect',
-            html: `<div style="width:100%; height:100%; background-color:${rgbaColor}; border-radius:4px;"></div>`,
-            iconSize: [50, 20]
+            className: 'pulsing-icon',
+            // Pass the RGB color to the CSS variable for the pulse effect
+            html: `<div style="background: rgb(${colorRgb}); --marker-rgb: ${colorRgb};"></div>`,
+            iconSize: [20, 20]
           })
         }).addTo(markersLayer);
       });
