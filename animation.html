@@ -10,30 +10,33 @@
     #map { height: 100vh; }
     .leaflet-tile-pane { transition: filter 0.5s ease; }
     
+    /* Pulsing Circles */
     .pulsing-icon div {
       width: 20px; height: 20px; border-radius: 50%;
-      opacity: 0.8;
+      opacity: 0.7; /* Transparency */
       animation: pulse 1.5s infinite;
     }
     @keyframes pulse {
       0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0.7); }
-      70% { transform: scale(1.6); box-shadow: 0 0 0 15px rgba(var(--marker-rgb), 0); }
+      70% { transform: scale(1.8); box-shadow: 0 0 0 15px rgba(var(--marker-rgb), 0); }
       100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0); }
     }
 
-    /* Split-Flap Clock Styling */
+    /* Fixed-Width Split-Flap Clock Styling */
     #clock-container {
       position: fixed; top: 20px; right: 20px; z-index: 1000;
-      background: #222; padding: 10px; border-radius: 4px;
-      font-family: 'Courier New', Courier, monospace; 
-      font-weight: bold; color: #fff;
-      display: flex; gap: 4px;
+      background: #000; padding: 10px; border-radius: 5px;
+      display: flex; gap: 10px;
     }
     .flap {
-      background: #333; padding: 5px 8px; border-radius: 2px;
-      border-bottom: 2px solid #000;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-      text-transform: uppercase;
+      background: #222; color: #fff;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 24px; font-weight: bold;
+      padding: 10px 15px; border-radius: 3px;
+      border-bottom: 3px solid #111;
+      /* Fix width so it doesn't jump */
+      min-width: 120px; text-align: center;
+      display: inline-block;
     }
   </style>
 </head>
@@ -41,8 +44,8 @@
 
   <div id="map"></div>
   <div id="clock-container">
-    <div id="day-flap" class="flap">Maandag</div>
-    <div id="time-flap" class="flap">00:00</div>
+    <div id="day-flap" class="flap"></div>
+    <div id="time-flap" class="flap"></div>
   </div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -58,15 +61,16 @@
     let currentDayIndex = 0;
 
     function animateMap() {
+      // 1. Map Brightness
       const brightness = 0.65 + 0.35 * Math.cos(((currentHour - 12) / 24) * 2 * Math.PI);
       const tilePane = document.querySelector('.leaflet-tile-pane');
       if (tilePane) tilePane.style.filter = `brightness(${brightness})`;
       
-      // Update Split-Flap UI
+      // 2. Update Split-Flap UI
       document.getElementById('day-flap').innerText = days[currentDayIndex];
       document.getElementById('time-flap').innerText = `${currentHour.toString().padStart(2, '0')}:00`;
 
-      // Update Markers
+      // 3. Update Markers
       markersLayer.clearLayers();
       const norm = (currentHour >= 7 && currentHour < 19) ? 70 : 45;
       sensors.forEach(pos => {
