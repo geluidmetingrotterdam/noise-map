@@ -7,16 +7,15 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body { margin: 0; padding: 0; background-color: #111; }
-    #map { height: 100vh; transition: filter 0.5s ease; }
+    /* Target only the tiles for brightness, keeping markers visible */
+    .leaflet-tile-pane { transition: filter 0.5s ease; }
+    #map { height: 100vh; }
     
-    .pulsing-icon div {
-      width: 20px; height: 20px; border-radius: 50%;
-      animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse {
-      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0.4); }
-      70% { transform: scale(1.4); box-shadow: 0 0 0 10px rgba(0,0,0,0); }
-      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+    /* Rectangle style */
+    .sensor-rect {
+      width: 30px; height: 12px;
+      border-radius: 2px;
+      opacity: 0.9;
     }
 
     #clock {
@@ -39,20 +38,19 @@
     }).addTo(map);
 
     let markersLayer = L.layerGroup().addTo(map);
-    
-    // Create 5 dummy sensors for demonstration
     const sensors = [
       [51.922, 4.475], [51.918, 4.480], [51.920, 4.485], [51.915, 4.470], [51.925, 4.490]
     ];
 
-    let currentHour = 0; // 0 to 23
+    let currentHour = 0; 
 
     function animateMap() {
-      // 1. Calculate Brightness (0.3 = Night, 1.0 = Day)
+      // 1. Calculate Brightness (Only for tiles)
       const brightness = 0.65 + 0.35 * Math.cos(((currentHour - 12) / 24) * 2 * Math.PI);
-      document.getElementById('map').style.filter = `brightness(${brightness})`;
+      const tilePane = document.querySelector('.leaflet-tile-pane');
+      if (tilePane) tilePane.style.filter = `brightness(${brightness})`;
       
-      // 2. Update Clock UI
+      // 2. Update Clock
       document.getElementById('clock').innerText = `Time: ${currentHour.toString().padStart(2, '0')}:00`;
 
       // 3. Update Markers
@@ -60,26 +58,22 @@
       const norm = (currentHour >= 7 && currentHour < 19) ? 70 : 45;
 
       sensors.forEach(pos => {
-        // Fake dynamic noise: higher during day (roughly 50-80dB)
         const base = (currentHour >= 7 && currentHour < 19) ? 60 : 30;
         const noise = base + Math.random() * 30;
-        
-        let color = noise > norm + 10 ? 'red' : (noise > norm ? 'orange' : 'green');
+        let color = noise > norm + 10 ? '#ff4d4d' : (noise > norm ? '#ffa500' : '#2ecc71');
 
         L.marker(pos, {
           icon: L.divIcon({
-            className: 'pulsing-icon',
-            html: `<div style="background:${color}"></div>`,
-            iconSize: [20, 20]
+            className: 'sensor-rect',
+            html: `<div style="width:100%; height:100%; background-color:${color};"></div>`,
+            iconSize: [30, 12]
           })
         }).addTo(markersLayer);
       });
 
-      // Increment time
       currentHour = (currentHour + 1) % 24;
     }
 
-    // Run animation loop every 800ms
     setInterval(animateMap, 800);
     animateMap();
   </script>
