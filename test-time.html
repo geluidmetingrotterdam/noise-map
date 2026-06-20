@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        
+        .board { display: flex; gap: 10px; }
+        
+        .flap {
+            position: relative;
+            background: #333;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 48px;
+            font-weight: bold;
+            padding: 20px 30px;
+            border-radius: 6px;
+            text-align: center;
+            min-width: 150px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            /* Creating the "split" effect */
+            border-bottom: 2px solid #000;
+        }
+
+        .flap::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 50%;
+            width: 100%;
+            height: 2px;
+            background: #000;
+            transform: translateY(-50%);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="board">
+        <div id="day-flap" class="flap">MAANDAG</div>
+        <div id="time-flap" class="flap">00:00</div>
+    </div>
+
+    <script>
+        const days = ["MAANDAG", "DINSDAG", "WOENSDAG", "DONDERDAG", "VRIJDAG", "ZATERDAG", "ZONDAG"];
+        let hour = 0;
+        let dayIdx = 0;
+
+        function updateClock() {
+            document.getElementById('day-flap').innerText = days[dayIdx];
+            document.getElementById('time-flap').innerText = hour.toString().padStart(2, '0') + ":00";
+            
+            hour++;
+            if (hour >= 24) {
+                hour = 0;
+                dayIdx = (dayIdx + 1) % days.length;
+            }
+        }
+
+        setInterval(updateClock, 800);
+        updateClock();
+    </script>
+</body>
+</html>
