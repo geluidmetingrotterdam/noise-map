@@ -1,82 +1,87 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Rotterdam Health & Environmental Map</title>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Noise Map Animation</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body { margin: 0; padding: 0; background-color: #111; }
+    #map { height: 100vh; transition: filter 0.5s ease; }
+    
+    .pulsing-icon div {
+      width: 20px; height: 20px; border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0.4); }
+      70% { transform: scale(1.4); box-shadow: 0 0 0 10px rgba(0,0,0,0); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+    }
 
-    <style>
-        /* Change body background to white */
-        body { margin:0; padding:0; background: #fff; font-family: sans-serif; }
-        #map { height: 100vh; width: 100vw; }
-
-        /* The tile pane filter will now make a light map turn dark */
-        .leaflet-tile-pane { transition: filter 1s ease; }
-
-        /* Marker with white border */
-        .glow-marker {
-            width: 12px; height: 12px;
-            border-radius: 50%;
-            border: 2px solid white;
-            animation: pulse-glow 2s infinite;
-        }
-        @keyframes pulse-glow {
-            0% { box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0.7); }
-            70% { box-shadow: 0 0 0 15px rgba(var(--marker-rgb), 0); }
-            100% { box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0); }
-        }
-    </style>
+    #clock {
+      position: fixed; top: 20px; right: 20px; z-index: 1000;
+      background: rgba(0,0,0,0.7); color: white; padding: 15px;
+      font-family: sans-serif; font-size: 20px; border-radius: 8px;
+    }
+  </style>
 </head>
 <body>
 
-<div id="map"></div>
+  <div id="map"></div>
+  <div id="clock">Time: 00:00</div>
 
-<script>
-    const map = L.map('map', { zoomControl: false }).setView([51.9225, 4.47917], 13);
-    
-    // SWITCHED TO LIGHT MAP
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map', { maxZoom: 18 }).setView([51.9191, 4.4801], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap'
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
     let markersLayer = L.layerGroup().addTo(map);
-    let currentHour = 0; 
+    
+    // Create 5 dummy sensors for demonstration
+    const sensors = [
+      [51.922, 4.475], [51.918, 4.480], [51.920, 4.485], [51.915, 4.470], [51.925, 4.490]
+    ];
 
-    function updateMap() {
-        // 1. Calculate Brightness: Day = 1.0 (Normal), Night = 0.2 (Dark)
-        let brightness = 1.0;
-        if (currentHour >= 5 && currentHour < 7) brightness = 0.2 + (currentHour - 5) * 0.4;
-        else if (currentHour >= 7 && currentHour < 18) brightness = 1.0;
-        else if (currentHour >= 18 && currentHour < 20) brightness = 1.0 - (currentHour - 18) * 0.4;
-        else brightness = 0.2;
+    let currentHour = 0; // 0 to 23
+
+    function animateMap() {
+      // 1. Calculate Brightness (0.3 = Night, 1.0 = Day)
+      const brightness = 0.65 + 0.35 * Math.cos(((currentHour - 12) / 24) * 2 * Math.PI);
+      document.getElementById('map').style.filter = `brightness(${brightness})`;
+      
+      // 2. Update Clock UI
+      document.getElementById('clock').innerText = `Time: ${currentHour.toString().padStart(2, '0')}:00`;
+
+      // 3. Update Markers
+      markersLayer.clearLayers();
+      const norm = (currentHour >= 7 && currentHour < 19) ? 70 : 45;
+
+      sensors.forEach(pos => {
+        // Fake dynamic noise: higher during day (roughly 50-80dB)
+        const base = (currentHour >= 7 && currentHour < 19) ? 60 : 30;
+        const noise = base + Math.random() * 30;
         
-        const tilePane = document.querySelector('.leaflet-tile-pane');
-        if (tilePane) tilePane.style.filter = `brightness(${brightness})`;
+        let color = noise > norm + 10 ? 'red' : (noise > norm ? 'orange' : 'green');
 
-        // 2. Refresh Markers
-        markersLayer.clearLayers();
-        const dummyData = [[51.922, 4.479], [51.925, 4.485], [51.918, 4.470]];
-        
-        dummyData.forEach(coord => {
-            const intensity = Math.random();
-            const colorRgb = intensity > 0.6 ? '255, 0, 0' : (intensity > 0.3 ? '255, 165, 0' : '0, 255, 0');
-            
-            L.marker(coord, {
-                icon: L.divIcon({
-                    className: 'glow-marker',
-                    html: `<div style="width:100%; height:100%; border-radius:50%; background:rgb(${colorRgb}); --marker-rgb: ${colorRgb};"></div>`,
-                    iconSize: [12, 12]
-                })
-            }).addTo(markersLayer);
-        });
+        L.marker(pos, {
+          icon: L.divIcon({
+            className: 'pulsing-icon',
+            html: `<div style="background:${color}"></div>`,
+            iconSize: [20, 20]
+          })
+        }).addTo(markersLayer);
+      });
 
-        currentHour = (currentHour + 1) % 24;
+      // Increment time
+      currentHour = (currentHour + 1) % 24;
     }
 
-    setInterval(updateMap, 800);
-    updateMap();
-</script>
+    // Run animation loop every 800ms
+    setInterval(animateMap, 800);
+    animateMap();
+  </script>
 </body>
 </html>
