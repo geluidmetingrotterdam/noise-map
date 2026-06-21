@@ -2,69 +2,69 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Noise Sensors in Rotterdam Centrum</title>
+  <title>Noise Map Presentation</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body { margin: 0; padding: 0; }
+    body { margin: 0; padding: 0; background-color: #111; }
     #map { height: 100vh; }
-    .pulsing-icon div { width: 20px; height: 20px; border-radius: 50%; animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0.4); } 70% { transform: scale(1.4); box-shadow: 0 0 0 10px rgba(0,0,0,0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0); } }
-    #legend { position: fixed; bottom: 30px; left: 10px; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 5px rgba(0,0,0,0.3); font-family: sans-serif; z-index: 1000; }
+    .pulsing-icon div { width: 20px; height: 20px; border-radius: 50%; opacity: 0.7; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0.7); } 70% { transform: scale(1.8); box-shadow: 0 0 0 15px rgba(var(--marker-rgb), 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0); } }
+    #clock-container { position: fixed; top: 20px; right: 20px; z-index: 1000; background: #000; padding: 15px; border-radius: 8px; color: #fff; font-family: monospace; font-size: 24px; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div id="legend">
-    <strong>Noise Exceedance</strong><br>
-    <span style="color:green;">●</span> Within Norm<br>
-    <span style="color:orange;">●</span> Slightly Above<br>
-    <span style="color:red;">●</span> Above Norm
-  </div>
+  <div id="clock-container">Time: <span id="time-display">00:00</span></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
     const map = L.map('map').setView([51.9191, 4.4801], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     let markersLayer = L.layerGroup().addTo(map);
+    
+    let animationData = [];
+    let locationRegistry = {};
+    let h = 0;
 
-    async function loadSensors() {
-      markersLayer.clearLayers();
-
-      // Fetch both files in parallel
-      const [locRes, csvRes] = await Promise.all([
+    // Load both files
+    async function init() {
+      const [locRes, animRes] = await Promise.all([
         fetch('sensor_locations.json'),
-        fetch('severity_cells_2025.csv')
+        fetch('animation_data.json')
       ]);
-
-      const locMap = await locRes.json();
-      const csvText = await csvRes.text();
-      const rows = csvText.split('\n').slice(1); // Skip header
-
-      rows.forEach(row => {
-        const cols = row.split(',');
-        if (cols.length < 11) return;
-        
-        const id = cols[0].trim();
-        const exceedance = parseFloat(cols[10]);
-        const loc = locMap[id];
-
-        if (loc) {
-          // Define color based on exceedance
-          let color = exceedance > 5 ? 'red' : (exceedance > 0 ? 'orange' : 'green');
-
-          L.marker([parseFloat(loc.lat), parseFloat(loc.lon)], {
-            icon: L.divIcon({ 
-              className: 'pulsing-icon', 
-              html: `<div style="background:${color}"></div>` 
-            })
-          })
-          .addTo(markersLayer)
-          .bindPopup(`<strong>Sensor ID: ${id}</strong><br>Exceedance: ${exceedance.toFixed(2)} dB`);
-        }
-      });
+      locationRegistry = await locRes.json();
+      animationData = await animRes.json();
+      
+      setInterval(update, 800);
     }
 
-    loadSensors();
+    function update() {
+      markersLayer.clearLayers();
+      const frame = animationData.find(f => f.hour === h);
+      
+      if (frame) {
+        frame.sensors.forEach(s => {
+          const loc = locationRegistry[s.id];
+          if (loc) {
+            // Color: Red if > 5 exceedance, Orange if > 0, Green otherwise
+            let color = s.exceedance > 5 ? '255,0,0' : (s.exceedance > 0 ? '255,165,0' : '46,204,113');
+            
+            L.marker([parseFloat(loc.lat), parseFloat(loc.lon)], { 
+              icon: L.divIcon({ 
+                className: 'pulsing-icon', 
+                html: `<div style="background: rgb(${color}); --marker-rgb: ${color};"></div>` 
+              }) 
+            })
+            .addTo(markersLayer)
+            .bindPopup(`ID: ${s.id}<br>Exceedance: ${s.exceedance.toFixed(2)} dB`);
+          }
+        });
+        document.getElementById('time-display').innerText = `${h.toString().padStart(2, '0')}:00`;
+      }
+      h = (h + 1) % 24;
+    }
+
+    init();
   </script>
 </body>
 </html>
