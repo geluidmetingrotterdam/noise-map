@@ -5,22 +5,28 @@
   <title>Noise Map v.2026-FINAL</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body { margin: 0; padding: 0; background-color: #111; font-family: sans-serif; }
+    body { margin: 0; padding: 0; background-color: #111; }
     #map { height: 100vh; transition: filter 0.5s ease; }
     
-    /* Markers */
     .pulsing-icon div { width: 20px; height: 20px; border-radius: 50%; opacity: 0.7; animation: pulse 1.5s infinite; }
     @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0.7); } 70% { transform: scale(1.8); box-shadow: 0 0 0 15px rgba(var(--marker-rgb), 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0); } }
 
-    /* Split-Flap Clock UI */
+    /* STABLE UI STYLING */
     #clock-container {
         position: fixed; top: 20px; right: 20px; z-index: 1000;
         background: #000; padding: 15px; border-radius: 8px;
     }
     .flap-card {
-        background: #222; color: #fff; font-family: monospace; font-size: 30px;
-        padding: 10px; border-bottom: 3px solid #000; border-radius: 4px;
-        min-width: 150px; text-align: center; position: relative;
+        background: #222; color: #fff;
+        /* Monospace font ensures every letter is the same width */
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 30px;
+        padding: 10px 15px; border-bottom: 3px solid #000; border-radius: 4px;
+        /* Width fixed for 'DONDERDAG' (approx 210px) */
+        min-width: 210px; 
+        /* Right-aligning locks the text in place */
+        text-align: right;
+        position: relative;
     }
     .flap-card::after { content: ""; position: absolute; top: 50%; left: 0; width: 100%; height: 2px; background: #000; }
     .version-tag { font-size: 10px; color: #666; text-align: right; margin-top: 5px; }
@@ -48,16 +54,13 @@
     let currentDayIndex = 0;
 
     function animateMap() {
-      // 1. Brightness
       const brightness = 0.65 + 0.35 * Math.cos(((currentHour - 12) / 24) * 2 * Math.PI);
       const tilePane = document.querySelector('.leaflet-tile-pane');
       if (tilePane) tilePane.style.filter = `brightness(${brightness})`;
       
-      // 2. UI Update
       document.getElementById('day-flap').innerText = days[currentDayIndex];
       document.getElementById('time-flap').innerText = `${currentHour.toString().padStart(2, '0')}:00`;
 
-      // 3. Markers
       markersLayer.clearLayers();
       sensors.forEach(pos => {
         const noise = Math.random() * 100;
