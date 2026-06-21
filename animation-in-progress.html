@@ -6,47 +6,47 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body { margin: 0; padding: 0; background-color: #111; }
-    #map { height: 100vh; transition: filter 0.5s ease; }
+    #map { height: 100vh; }
     .pulsing-icon div { width: 20px; height: 20px; border-radius: 50%; opacity: 0.7; animation: pulse 1.5s infinite; }
     @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0.7); } 70% { transform: scale(1.8); box-shadow: 0 0 0 15px rgba(var(--marker-rgb), 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--marker-rgb), 0); } }
-    #clock-container { position: fixed; top: 20px; right: 20px; z-index: 1000; background: #000; padding: 15px; border-radius: 8px; }
-    .flap-card { background: #222; color: #fff; font-family: 'Courier New', Courier, monospace; font-size: 30px; padding: 10px 15px; border-bottom: 3px solid #000; border-radius: 4px; min-width: 210px; text-align: right; position: relative; }
-    .flap-card::after { content: ""; position: absolute; top: 50%; left: 0; width: 100%; height: 2px; background: #000; }
+    #clock-container { position: fixed; top: 20px; right: 20px; z-index: 1000; background: #000; padding: 15px; border-radius: 8px; color: #fff; font-family: monospace; font-size: 24px; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div id="clock-container">
-    <div id="day-flap" class="flap-card">DONDERDAG</div>
-    <div id="time-flap" class="flap-card" style="margin-top:5px;">00:00</div>
-  </div>
+  <div id="clock-container">Time: <span id="time-display">00:00</span></div>
+
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    // Embedded Data from 2025_T3
-    const animationData = [
-      {"hour": 0, "sensors": [{"id": "89747", "lat": 51.9166, "lon": 4.4743, "value": 63.3, "exceedance": 13.3}, {"id": "94284", "lat": 51.9281, "lon": 4.4737, "value": 50.5, "exceedance": 0.5}, {"id": "94448", "lat": 51.9237, "lon": 4.4738, "value": 46.8, "exceedance": -3.2}, {"id": "94449", "lat": 51.9211, "lon": 4.4762, "value": 55.0, "exceedance": 5.0}, {"id": "94687", "lat": 51.9122, "lon": 4.4806, "value": 55.0, "exceedance": 5.0}]},
-      // ... (Note: Ensure you include the full JSON array here)
-    ];
-
     const map = L.map('map').setView([51.9191, 4.4801], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     let markersLayer = L.layerGroup().addTo(map);
+    let animationData = [];
     let h = 0;
+
+    // Load data from file
+    fetch('animation_data.json')
+      .then(response => response.json())
+      .then(data => {
+        animationData = data;
+        setInterval(update, 800);
+      });
 
     function update() {
       markersLayer.clearLayers();
       const frame = animationData.find(f => f.hour === h);
       if (frame) {
         frame.sensors.forEach(s => {
+          // Color logic: Red if > 5 exceedance, Orange if > 0, Green otherwise
           let color = s.exceedance > 5 ? '255,0,0' : (s.exceedance > 0 ? '255,165,0' : '46,204,113');
-          L.marker([s.lat, s.lon], { icon: L.divIcon({ className: 'pulsing-icon', html: `<div style="background: rgb(${color}); --marker-rgb: ${color};"></div>` }) }).addTo(markersLayer);
+          L.marker([s.lat, s.lon], { 
+            icon: L.divIcon({ className: 'pulsing-icon', html: `<div style="background: rgb(${color}); --marker-rgb: ${color};"></div>` }) 
+          }).addTo(markersLayer);
         });
+        document.getElementById('time-display').innerText = `${h.toString().padStart(2, '0')}:00`;
       }
-      document.getElementById('time-flap').innerText = `${h.toString().padStart(2, '0')}:00`;
       h = (h + 1) % 24;
     }
-    setInterval(update, 800);
-    update();
   </script>
 </body>
 </html>
