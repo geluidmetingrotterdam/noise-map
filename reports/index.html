@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geluidmeting Rapportage 2025</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; max-width: 900px; margin: auto; padding: 20px; color: #333; }
+        .hero { text-align: center; margin-bottom: 40px; }
+        .card { border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 20px; background: #f9f9f9; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        img { max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #ccc; }
+        .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="hero">
+        <h1>Geluidmeting Rapportage 2025</h1>
+        <p>Overzicht van de gemeten geluidsniveaus gedurende het jaar 2025.</p>
+        <a href="rapport_totaal_2025.pdf" class="btn" download>Download Volledig PDF Rapport (2025)</a>
+    </div>
+
+    <div class="card">
+        <h2>Samenvatting</h2>
+        <p>Hier kunt u een korte tekst plaatsen die de belangrijkste resultaten van de metingen in 2025 samenvat. Bijvoorbeeld: <em>"De geluidsniveaus bleven in het eerste trimester stabiel, met een lichte piek in het derde trimester door werkzaamheden..."</em></p>
+    </div>
+
+    <h2>Grafieken & Resultaten</h2>
+    <div class="grid">
+        <div class="card">
+            <h3>Sensor: Rotterdam-Centrum</h3>
+            <img src="sensor-centrum/grafiek_2025.png" alt="Grafiek Sensor Centrum">
+            <p><a href="sensor-centrum/data_2025.csv" download>Download ruwe data (.csv)</a></p>
+        </div>
+
+        <div class="card">
+            <h3>Sensor: Rotterdam-Zuid</h3>
+            <img src="sensor-zuid/grafiek_2025.png" alt="Grafiek Sensor Zuid">
+            <p><a href="sensor-zuid/data_2025.csv" download>Download ruwe data (.csv)</a></p>
+        </div>
+    </div>
+
+</body>
+</html>
