@@ -3,42 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geluidmeting Rapportage 2025</title>
+    <title>Geluidsmeting Rotterdam 2025</title>
     <style>
-        body { font-family: sans-serif; line-height: 1.6; max-width: 900px; margin: auto; padding: 20px; color: #333; }
-        .hero { text-align: center; margin-bottom: 40px; }
-        .card { border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 20px; background: #f9f9f9; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        img { max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #ccc; }
-        .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 10px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 1000px; margin: auto; padding: 20px; color: #333; }
+        .hero { background: #f4f4f9; padding: 30px; border-radius: 8px; text-align: center; margin-bottom: 30px; }
+        .reports { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+        .btn { padding: 12px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }
+        .sensor-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px; }
+        .card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; background: #fff; text-align: center; }
+        img { max-width: 100%; height: auto; border-radius: 4px; margin-bottom: 10px; border: 1px solid #eee; }
+        h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 40px; }
     </style>
 </head>
 <body>
 
     <div class="hero">
-        <h1>Geluidmeting Rapportage 2025</h1>
-        <p>Overzicht van de gemeten geluidsniveaus gedurende het jaar 2025.</p>
-        <a href="rapport_totaal_2025.pdf" class="btn" download>Download Volledig PDF Rapport (2025)</a>
+        <h1>Geluidsmeting Rotterdam 2025</h1>
+        <p>Overzicht van geluidsmetingen per sensor.</p>
+        <div class="reports">
+            <a href="Geluidsmeting-Report-2025.pdf" class="btn">Download Volledig Rapport</a>
+            <a href="Samenvatting Geluidsmeting Rotterdam 2025.pdf" class="btn">Download Samenvatting</a>
+        </div>
     </div>
 
-    <div class="card">
-        <h2>Samenvatting</h2>
-        <p>Hier kunt u een korte tekst plaatsen die de belangrijkste resultaten van de metingen in 2025 samenvat. Bijvoorbeeld: <em>"De geluidsniveaus bleven in het eerste trimester stabiel, met een lichte piek in het derde trimester door werkzaamheden..."</em></p>
-    </div>
-
-    <h2>Grafieken & Resultaten</h2>
-    <div class="grid">
-        <div class="card">
-            <h3>Sensor: Rotterdam-Centrum</h3>
-            <img src="sensor-centrum/grafiek_2025.png" alt="Grafiek Sensor Centrum">
-            <p><a href="sensor-centrum/data_2025.csv" download>Download ruwe data (.csv)</a></p>
-        </div>
-
-        <div class="card">
-            <h3>Sensor: Rotterdam-Zuid</h3>
-            <img src="sensor-zuid/grafiek_2025.png" alt="Grafiek Sensor Zuid">
-            <p><a href="sensor-zuid/data_2025.csv" download>Download ruwe data (.csv)</a></p>
-        </div>
+    <h2>Alle Sensor Resultaten</h2>
+    <div class="sensor-container">
+        <div class="card"><h3>Sensor 89747</h3>
+            <img src="sensor_89747_2025_T1_SEVERITY_24x7.png"><img src="sensor_89747_2025_T2_SEVERITY_24x7.png"><img src="sensor_89747_2025_T3_SEVERITY_24x7.png"></div>
+        
+        <div class="card"><h3>Sensor 94284</h3>
+            <img src="sensor_94284_2025_T2_SEVERITY_24x7.png"><img src="sensor_94284_2025_T3_SEVERITY_24x7.png"><img src="sensor_94284_2025_T4_SEVERITY_24x7.png"></div>
+        
+        <div class="card"><h3>Sensor 94448</h3>
+            <img src="sensor_94448_2025_T2_SEVERITY_24x7.png"><img src="sensor_94448_2025_T3_SEVERITY_24x7.png"><img src="sensor_94448_2025_T4_SEVERITY_24x7.png"></div>
+        
+        <div class="card"><h3>Sensor 94449</h3>
+            <img src="sensor_94449_2025_T2_SEVERITY_24x7.png"><img src="sensor_94449_2025_T3_SEVERITY_24x7.png"><img src="sensor_94449_2025_T4_SEVERITY_24x7.png"></div>
+        
+        <div class="card"><h3>Sensor 94687</h3>
+            <img src="sensor_94687_2025_T2_SEVERITY_24x7.png"><img src="sensor_94687_2025_T3_SEVERITY_24x7.png"><img src="sensor_94687_2025_T4_SEVERITY_24x7.png"></div>
+        
+        <div class="card"><h3>Sensor 94693</h3>
+            <img src="sensor_94693_2025_T2_SEVERITY_24x7.png"><img src="sensor_94693_2025_T3_SEVERITY_24x7.png"><img src="sensor_94693_2025_T4_SEVERITY_24x7.png"></div>
+        
+        <div class="card"><h3>Sensor 94695</h3>
+            <img src="sensor_94695_2025_T2_SEVERITY_24x7.png"><img src="sensor_94695_2025_T3_SEVERITY_24x7.png"><img src="sensor_94695_2025_T4_SEVERITY_24x7.png"></div>
+        
+        <div class="card"><h3>Sensor 94701</h3>
+            <img src="sensor_94701_2025_T3_SEVERITY_24x7.png"><img src="sensor_94701_2025_T4_SEVERITY_24x7.png"></div>
+        
+        <div class="card"><h3>Sensor 94735</h3>
+            <img src="sensor_94735_2025_T2_SEVERITY_24x7.png"><img src="sensor_94735_2025_T3_SEVERITY_24x7.png"><img src="sensor_94735_2025_T4_SEVERITY_24x7.png"></div>
+        
+        <div class="card"><h3>Sensor 95484</h3>
+            <img src="sensor_95484_2025_T3_SEVERITY_24x7.png"><img src="sensor_95484_2025_T4_SEVERITY_24x7.png"></div>
+        
+        <div class="card"><h3>Sensor 95488</h3>
+            <img src="sensor_95488_2025_T3_SEVERITY_24x7.png"><img src="sensor_95488_2025_T4_SEVERITY_24x7.png"></div>
+        
+        <div class="card"><h3>Sensor 95490</h3>
+            <img src="sensor_95490_2025_T3_SEVERITY_24x7.png"><img src="sensor_95490_2025_T4_SEVERITY_24x7.png"></div>
+        
+        <div class="card"><h3>Sensor 95492</h3>
+            <img src="sensor_95492_2025_T3_SEVERITY_24x7.png"><img src="sensor_95492_2025_T4_SEVERITY_24x7.png"></div>
+        
+        <div class="card"><h3>Sensor 97135</h3>
+            <img src="sensor_97135_2025_T4_SEVERITY_24x7.png"></div>
     </div>
 
 </body>
