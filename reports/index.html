@@ -11,8 +11,10 @@
         .btn { padding: 12px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }
         .sensor-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px; }
         .card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; background: #fff; text-align: center; }
-        img { max-width: 100%; height: auto; border-radius: 4px; margin-bottom: 10px; border: 1px solid #eee; }
+        img { max-width: 100%; height: auto; border-radius: 4px; margin-bottom: 5px; border: 1px solid #eee; transition: transform 0.2s; }
+        img:hover { transform: scale(1.02); cursor: pointer; border-color: #007bff; }
         h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 40px; }
+        .hint { font-size: 0.8em; color: #666; margin-bottom: 10px; display: block; }
     </style>
 </head>
 <body>
@@ -27,48 +29,85 @@
     </div>
 
     <h2>Alle Sensor Resultaten</h2>
+    <span class="hint">Klik op een grafiek om de afbeelding te downloaden.</span>
+    
     <div class="sensor-container">
         <div class="card"><h3>Sensor 89747</h3>
-            <img src="sensor_89747_2025_T1_SEVERITY_24x7.png"><img src="sensor_89747_2025_T2_SEVERITY_24x7.png"><img src="sensor_89747_2025_T3_SEVERITY_24x7.png"></div>
+            <a href="sensor_89747_2025_T1_SEVERITY_24x7.png" download><img src="sensor_89747_2025_T1_SEVERITY_24x7.png" alt="T1"></a>
+            <a href="sensor_89747_2025_T2_SEVERITY_24x7.png" download><img src="sensor_89747_2025_T2_SEVERITY_24x7.png" alt="T2"></a>
+            <a href="sensor_89747_2025_T3_SEVERITY_24x7.png" download><img src="sensor_89747_2025_T3_SEVERITY_24x7.png" alt="T3"></a>
+        </div>
         
         <div class="card"><h3>Sensor 94284</h3>
-            <img src="sensor_94284_2025_T2_SEVERITY_24x7.png"><img src="sensor_94284_2025_T3_SEVERITY_24x7.png"><img src="sensor_94284_2025_T4_SEVERITY_24x7.png"></div>
+            <a href="sensor_94284_2025_T2_SEVERITY_24x7.png" download><img src="sensor_94284_2025_T2_SEVERITY_24x7.png" alt="T2"></a>
+            <a href="sensor_94284_2025_T3_SEVERITY_24x7.png" download><img src="sensor_94284_2025_T3_SEVERITY_24x7.png" alt="T3"></a>
+            <a href="sensor_94284_2025_T4_SEVERITY_24x7.png" download><img src="sensor_94284_2025_T4_SEVERITY_24x7.png" alt="T4"></a>
+        </div>
         
         <div class="card"><h3>Sensor 94448</h3>
-            <img src="sensor_94448_2025_T2_SEVERITY_24x7.png"><img src="sensor_94448_2025_T3_SEVERITY_24x7.png"><img src="sensor_94448_2025_T4_SEVERITY_24x7.png"></div>
+            <a href="sensor_94448_2025_T2_SEVERITY_24x7.png" download><img src="sensor_94448_2025_T2_SEVERITY_24x7.png" alt="T2"></a>
+            <a href="sensor_94448_2025_T3_SEVERITY_24x7.png" download><img src="sensor_94448_2025_T3_SEVERITY_24x7.png" alt="T3"></a>
+            <a href="sensor_94448_2025_T4_SEVERITY_24x7.png" download><img src="sensor_94448_2025_T4_SEVERITY_24x7.png" alt="T4"></a>
+        </div>
         
         <div class="card"><h3>Sensor 94449</h3>
-            <img src="sensor_94449_2025_T2_SEVERITY_24x7.png"><img src="sensor_94449_2025_T3_SEVERITY_24x7.png"><img src="sensor_94449_2025_T4_SEVERITY_24x7.png"></div>
+            <a href="sensor_94449_2025_T2_SEVERITY_24x7.png" download><img src="sensor_94449_2025_T2_SEVERITY_24x7.png" alt="T2"></a>
+            <a href="sensor_94449_2025_T3_SEVERITY_24x7.png" download><img src="sensor_94449_2025_T3_SEVERITY_24x7.png" alt="T3"></a>
+            <a href="sensor_94449_2025_T4_SEVERITY_24x7.png" download><img src="sensor_94449_2025_T4_SEVERITY_24x7.png" alt="T4"></a>
+        </div>
         
         <div class="card"><h3>Sensor 94687</h3>
-            <img src="sensor_94687_2025_T2_SEVERITY_24x7.png"><img src="sensor_94687_2025_T3_SEVERITY_24x7.png"><img src="sensor_94687_2025_T4_SEVERITY_24x7.png"></div>
+            <a href="sensor_94687_2025_T2_SEVERITY_24x7.png" download><img src="sensor_94687_2025_T2_SEVERITY_24x7.png" alt="T2"></a>
+            <a href="sensor_94687_2025_T3_SEVERITY_24x7.png" download><img src="sensor_94687_2025_T3_SEVERITY_24x7.png" alt="T3"></a>
+            <a href="sensor_94687_2025_T4_SEVERITY_24x7.png" download><img src="sensor_94687_2025_T4_SEVERITY_24x7.png" alt="T4"></a>
+        </div>
         
         <div class="card"><h3>Sensor 94693</h3>
-            <img src="sensor_94693_2025_T2_SEVERITY_24x7.png"><img src="sensor_94693_2025_T3_SEVERITY_24x7.png"><img src="sensor_94693_2025_T4_SEVERITY_24x7.png"></div>
+            <a href="sensor_94693_2025_T2_SEVERITY_24x7.png" download><img src="sensor_94693_2025_T2_SEVERITY_24x7.png" alt="T2"></a>
+            <a href="sensor_94693_2025_T3_SEVERITY_24x7.png" download><img src="sensor_94693_2025_T3_SEVERITY_24x7.png" alt="T3"></a>
+            <a href="sensor_94693_2025_T4_SEVERITY_24x7.png" download><img src="sensor_94693_2025_T4_SEVERITY_24x7.png" alt="T4"></a>
+        </div>
         
         <div class="card"><h3>Sensor 94695</h3>
-            <img src="sensor_94695_2025_T2_SEVERITY_24x7.png"><img src="sensor_94695_2025_T3_SEVERITY_24x7.png"><img src="sensor_94695_2025_T4_SEVERITY_24x7.png"></div>
+            <a href="sensor_94695_2025_T2_SEVERITY_24x7.png" download><img src="sensor_94695_2025_T2_SEVERITY_24x7.png" alt="T2"></a>
+            <a href="sensor_94695_2025_T3_SEVERITY_24x7.png" download><img src="sensor_94695_2025_T3_SEVERITY_24x7.png" alt="T3"></a>
+            <a href="sensor_94695_2025_T4_SEVERITY_24x7.png" download><img src="sensor_94695_2025_T4_SEVERITY_24x7.png" alt="T4"></a>
+        </div>
         
         <div class="card"><h3>Sensor 94701</h3>
-            <img src="sensor_94701_2025_T3_SEVERITY_24x7.png"><img src="sensor_94701_2025_T4_SEVERITY_24x7.png"></div>
+            <a href="sensor_94701_2025_T3_SEVERITY_24x7.png" download><img src="sensor_94701_2025_T3_SEVERITY_24x7.png" alt="T3"></a>
+            <a href="sensor_94701_2025_T4_SEVERITY_24x7.png" download><img src="sensor_94701_2025_T4_SEVERITY_24x7.png" alt="T4"></a>
+        </div>
         
         <div class="card"><h3>Sensor 94735</h3>
-            <img src="sensor_94735_2025_T2_SEVERITY_24x7.png"><img src="sensor_94735_2025_T3_SEVERITY_24x7.png"><img src="sensor_94735_2025_T4_SEVERITY_24x7.png"></div>
+            <a href="sensor_94735_2025_T2_SEVERITY_24x7.png" download><img src="sensor_94735_2025_T2_SEVERITY_24x7.png" alt="T2"></a>
+            <a href="sensor_94735_2025_T3_SEVERITY_24x7.png" download><img src="sensor_94735_2025_T3_SEVERITY_24x7.png" alt="T3"></a>
+            <a href="sensor_94735_2025_T4_SEVERITY_24x7.png" download><img src="sensor_94735_2025_T4_SEVERITY_24x7.png" alt="T4"></a>
+        </div>
         
         <div class="card"><h3>Sensor 95484</h3>
-            <img src="sensor_95484_2025_T3_SEVERITY_24x7.png"><img src="sensor_95484_2025_T4_SEVERITY_24x7.png"></div>
+            <a href="sensor_95484_2025_T3_SEVERITY_24x7.png" download><img src="sensor_95484_2025_T3_SEVERITY_24x7.png" alt="T3"></a>
+            <a href="sensor_95484_2025_T4_SEVERITY_24x7.png" download><img src="sensor_95484_2025_T4_SEVERITY_24x7.png" alt="T4"></a>
+        </div>
         
         <div class="card"><h3>Sensor 95488</h3>
-            <img src="sensor_95488_2025_T3_SEVERITY_24x7.png"><img src="sensor_95488_2025_T4_SEVERITY_24x7.png"></div>
+            <a href="sensor_95488_2025_T3_SEVERITY_24x7.png" download><img src="sensor_95488_2025_T3_SEVERITY_24x7.png" alt="T3"></a>
+            <a href="sensor_95488_2025_T4_SEVERITY_24x7.png" download><img src="sensor_95488_2025_T4_SEVERITY_24x7.png" alt="T4"></a>
+        </div>
         
         <div class="card"><h3>Sensor 95490</h3>
-            <img src="sensor_95490_2025_T3_SEVERITY_24x7.png"><img src="sensor_95490_2025_T4_SEVERITY_24x7.png"></div>
+            <a href="sensor_95490_2025_T3_SEVERITY_24x7.png" download><img src="sensor_95490_2025_T3_SEVERITY_24x7.png" alt="T3"></a>
+            <a href="sensor_95490_2025_T4_SEVERITY_24x7.png" download><img src="sensor_95490_2025_T4_SEVERITY_24x7.png" alt="T4"></a>
+        </div>
         
         <div class="card"><h3>Sensor 95492</h3>
-            <img src="sensor_95492_2025_T3_SEVERITY_24x7.png"><img src="sensor_95492_2025_T4_SEVERITY_24x7.png"></div>
+            <a href="sensor_95492_2025_T3_SEVERITY_24x7.png" download><img src="sensor_95492_2025_T3_SEVERITY_24x7.png" alt="T3"></a>
+            <a href="sensor_95492_2025_T4_SEVERITY_24x7.png" download><img src="sensor_95492_2025_T4_SEVERITY_24x7.png" alt="T4"></a>
+        </div>
         
         <div class="card"><h3>Sensor 97135</h3>
-            <img src="sensor_97135_2025_T4_SEVERITY_24x7.png"></div>
+            <a href="sensor_97135_2025_T4_SEVERITY_24x7.png" download><img src="sensor_97135_2025_T4_SEVERITY_24x7.png" alt="T4"></a>
+        </div>
     </div>
 
 </body>
