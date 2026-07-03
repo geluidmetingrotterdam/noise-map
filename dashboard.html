@@ -40,7 +40,6 @@
 <div class="container">
     <header>
         <div><h1>Noise Sensor Dashboard</h1><p>Rotterdam Monitoring</p></div>
-        <a href="https://geluidmetingrotterdam.github.io/noise-map/" target="_blank">← Back to Map</a>
     </header>
 
     <div class="summary-cards">
@@ -67,6 +66,8 @@
 <script>
     let globalSensorsData = [];
     let currentFilter = 'all';
+    
+    // STRICT LIST ONLY
     const targetIds = ["94448", "94449", "94695", "94701", "94735", "95484", "95488", "95492", "94284", "94687", "95490", "89747", "94693"];
 
     function renderDashboard() {
@@ -83,7 +84,7 @@
                 <td><strong>${s.dB ? s.dB + ' dB' : 'N/A'}</strong></td>
                 <td><span class="status-badge ${s.isOnline ? 'online' : 'offline'}">${s.isOnline ? 'Online' : 'Offline'}</span></td>
                 <td>${s.lastSeen}</td>
-                <td><a href="https://maps.google.com/?q=${s.lat},${s.lon}" target="_blank">View Location</a></td>
+                <td><a href="https://maps.google.com/?q=${s.lat},${s.lon}" target="_blank">Map</a></td>
             </tr>
         `).join('');
     }
@@ -102,20 +103,25 @@
             const tempMap = new Map();
             const now = new Date();
 
+            // Initialize map with all target IDs set to offline/null initially
+            targetIds.forEach(id => {
+                tempMap.set(id, { id, dB: null, isOnline: false, lastSeen: 'Never', lat: 0, lon: 0, rawTime: '1970-01-01' });
+            });
+
             data.forEach(entry => {
                 const id = (entry.sensor.sensor_id || entry.sensor.id).toString();
-                const lat = entry.location.latitude;
-                const lon = entry.location.longitude;
-                const inArea = (lat > 51.89 && lat < 51.93 && lon > 4.44 && lon < 4.55);
                 
-                if ((inArea || targetIds.includes(id)) && id !== "97135") {
+                // ONLY process if it is in your target list
+                if (targetIds.includes(id)) {
                     const noise = entry.sensordatavalues.find(v => /noise|spl/i.test(v.value_type));
                     const lastSeen = new Date(entry.timestamp.replace(' ', 'T') + 'Z');
                     
-                    if (!tempMap.has(id) || lastSeen > new Date(tempMap.get(id).rawTime)) {
+                    if (lastSeen > new Date(tempMap.get(id).rawTime)) {
                         tempMap.set(id, {
-                            id, lat, lon,
-                            dB: noise ? parseFloat(noise.value).toFixed(1) : null,
+                            id,
+                            lat: entry.location.latitude,
+                            lon: entry.location.longitude,
+                            dB: noise ? parseFloat(noise.value).toFixed(1) : tempMap.get(id).dB,
                             lastSeen: lastSeen.toLocaleString(),
                             rawTime: lastSeen.toISOString(),
                             isOnline: (now - lastSeen) < (45 * 60000)
