@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rotterdam Noise Sensor Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+            --text-color: #333;
+            --online-color: #2ec4b6;
+            --offline-color: #e71d36;
+            --accent-color: #011627;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #ddd; padding-bottom: 15px; }
+        h1 { margin: 0; color: var(--accent-color); }
+        .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .card { background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; }
+        .card h3 { margin: 0 0 10px 0; color: #666; font-size: 0.9rem; text-transform: uppercase; }
+        .card .value { font-size: 2rem; font-weight: bold; }
+        .card.online .value { color: var(--online-color); }
+        .card.offline .value { color: var(--offline-color); }
+        .controls { display: flex; gap: 15px; margin-bottom: 20px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; background-color: #ddd; transition: background 0.2s; }
+        .btn.active, .btn:hover { background-color: var(--accent-color); color: white; }
+        .table-container { background: var(--card-bg); border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 15px; border-bottom: 1px solid #eee; }
+        th { background-color: #f8f9fa; color: #555; }
+        .status-badge { padding: 5px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; }
+        .status-badge.online { background-color: #d1f7ec; color: #0f785c; }
+        .status-badge.offline { background-color: #fcd5d9; color: #b71c1c; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div><h1>Noise Sensor Dashboard</h1><p>Rotterdam Monitoring</p></div>
+        <a href="https://geluidmetingrotterdam.github.io/noise-map/" target="_blank">← Back to Map</a>
+    </header>
+
+    <div class="summary-cards">
+        <div class="card"><h3>Total Tracked</h3><div class="value" id="total-count">0</div></div>
+        <div class="card online"><h3>Online</h3><div class="value" id="online-count">0</div></div>
+        <div class="card offline"><h3>Offline</h3><div class="value" id="offline-count">0</div></div>
+    </div>
+
+    <div class="controls">
+        <button class="btn active" id="btn-all" onclick="filterSensors('all')">Show All</button>
+        <button class="btn" id="btn-offline" onclick="filterSensors('offline')">Show Offline Only 🚨</button>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr><th>Sensor ID</th><th>Latest Value</th><th>Status</th><th>Last Seen</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="sensor-table-body"><tr><td colspan="5" style="text-align:center;">Loading data...</td></tr></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let globalSensorsData = [];
+    let currentFilter = 'all';
+    const targetIds = ["94448", "94449", "94695", "94701", "94735", "95484", "95488", "95492", "94284", "94687", "95490", "89747", "94693"];
+
+    function renderDashboard() {
+        const tableBody = document.getElementById('sensor-table-body');
+        const filtered = globalSensorsData.filter(s => currentFilter === 'offline' ? !s.isOnline : true);
+        
+        document.getElementById('total-count').innerText = globalSensorsData.length;
+        document.getElementById('online-count').innerText = globalSensorsData.filter(s => s.isOnline).length;
+        document.getElementById('offline-count').innerText = globalSensorsData.filter(s => !s.isOnline).length;
+
+        tableBody.innerHTML = filtered.map(s => `
+            <tr>
+                <td><strong>#${s.id}</strong></td>
+                <td><strong>${s.dB ? s.dB + ' dB' : 'N/A'}</strong></td>
+                <td><span class="status-badge ${s.isOnline ? 'online' : 'offline'}">${s.isOnline ? 'Online' : 'Offline'}</span></td>
+                <td>${s.lastSeen}</td>
+                <td><a href="https://maps.google.com/?q=${s.lat},${s.lon}" target="_blank">View Location</a></td>
+            </tr>
+        `).join('');
+    }
+
+    function filterSensors(type) {
+        currentFilter = type;
+        document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(type === 'all' ? 'btn-all' : 'btn-offline').classList.add('active');
+        renderDashboard();
+    }
+
+    async function fetchRotterdamData() {
+        try {
+            const response = await fetch('https://data.sensor.community/static/v2/data.json');
+            const data = await response.json();
+            const tempMap = new Map();
+            const now = new Date();
+
+            data.forEach(entry => {
+                const id = (entry.sensor.sensor_id || entry.sensor.id).toString();
+                const lat = entry.location.latitude;
+                const lon = entry.location.longitude;
+                const inArea = (lat > 51.89 && lat < 51.93 && lon > 4.44 && lon < 4.55);
+                
+                if ((inArea || targetIds.includes(id)) && id !== "97135") {
+                    const noise = entry.sensordatavalues.find(v => /noise|spl/i.test(v.value_type));
+                    const lastSeen = new Date(entry.timestamp.replace(' ', 'T') + 'Z');
+                    
+                    if (!tempMap.has(id) || lastSeen > new Date(tempMap.get(id).rawTime)) {
+                        tempMap.set(id, {
+                            id, lat, lon,
+                            dB: noise ? parseFloat(noise.value).toFixed(1) : null,
+                            lastSeen: lastSeen.toLocaleString(),
+                            rawTime: lastSeen.toISOString(),
+                            isOnline: (now - lastSeen) < (45 * 60000)
+                        });
+                    }
+                }
+            });
+            globalSensorsData = Array.from(tempMap.values()).sort((a, b) => a.id.localeCompare(b.id, undefined, {numeric: true}));
+            renderDashboard();
+        } catch (e) { console.error(e); }
+    }
+
+    window.onload = () => { fetchRotterdamData(); setInterval(fetchRotterdamData, 60000); };
+</script>
+</body>
+</html>
